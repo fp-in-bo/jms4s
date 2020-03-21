@@ -1,0 +1,9 @@
+ibmMQ:
+  restart: always
+  image: ibmcom/mq # https://github.com/ibm-messaging/mq-docker
+  ports:
+    - "1414:1414"
+    - "9443:9443" #  https://localhost:9443/ibmmq/console/
+  environment:
+    - LICENSE=accept
+    - MQ_QMGR_NAME=QM1
