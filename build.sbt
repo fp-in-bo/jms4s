@@ -13,14 +13,34 @@ val betterMonadicForV = "0.3.1"
 lazy val `fs2-jms` = project
   .in(file("."))
   .enablePlugins(NoPublishPlugin)
-  .aggregate(core)
+  .aggregate(core, ibmMQ, tests, examples, site)
 
 lazy val core = project
   .in(file("core"))
   .settings(commonSettings)
-  .settings(
-    name := "fs2-jms"
-  )
+  .settings(name := "fs2-jms")
+  .settings(parallelExecution in Test := false)
+
+lazy val ibmMQ = project
+  .in(file("ibm-mq"))
+  .settings(commonSettings)
+  .settings(name := "fs2-jms-ibm-mq")
+  .settings(libraryDependencies ++= Seq("com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV))
+  .settings(parallelExecution in Test := false)
+  .dependsOn(core)
+
+lazy val tests = project
+  .in(file("tests"))
+  .settings(commonSettings: _*)
+  .enablePlugins(NoPublishPlugin)
+  .settings(parallelExecution in Test := false)
+  .dependsOn(core, ibmMQ)
+
+lazy val examples = project
+  .in(file("examples"))
+  .settings(commonSettings: _*)
+  .enablePlugins(NoPublishPlugin)
+  .dependsOn(core, ibmMQ)
 
 lazy val site = project
   .in(file("site"))
@@ -91,8 +111,7 @@ lazy val commonSettings = Seq(
     "co.fs2"            %% "fs2-io"                        % fs2V,
     "io.chrisdavenport" %% "log4cats-core"                 % log4catsV,
     "io.chrisdavenport" %% "log4cats-slf4j"                % log4catsV,
-    "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test,
-    "com.ibm.mq"        % "com.ibm.mq.allclient"           % ibmMQV % Test
+    "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
   )
 )
 
@@ -117,3 +136,5 @@ inThisBuild(
     )
   )
 )
+
+addCommandAlias("buildAll", ";clean;scalafmtAll;+test;mdoc")
