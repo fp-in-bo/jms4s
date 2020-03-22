@@ -1,43 +1,42 @@
 package fs2jms
 
-import cats.effect.{ IO, Resource }
+import cats.effect.{ Resource, Sync }
 import cats.implicits._
 import fs2jms.config.QueueName
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import io.chrisdavenport.log4cats.Logger
 import javax.jms._
 
 import scala.util.{ Failure, Try }
 
 object jms {
-  private val logger = Slf4jLogger.getLogger[IO]
 
-  def makeSession(queueConnection: QueueConnection): Resource[IO, QueueSession] =
+  def makeSession[F[_]: Sync: Logger](queueConnection: QueueConnection): Resource[F, QueueSession] =
     for {
       session <- Resource.fromAutoCloseable(
-                  logger.info(s"Opening QueueSession for $queueConnection.") *>
-                    IO.delay(queueConnection.createQueueSession(true, Session.SESSION_TRANSACTED))
+                  Logger[F].info(s"Opening QueueSession for $queueConnection.") *>
+                    Sync[F].delay(queueConnection.createQueueSession(true, Session.SESSION_TRANSACTED))
                 )
-      _ <- Resource.liftF(logger.info(s"Opened QueueSession $session for $queueConnection."))
+      _ <- Resource.liftF(Logger[F].info(s"Opened QueueSession $session for $queueConnection."))
     } yield session
 
-  def makeConsumer(session: QueueSession, input: QueueName): Resource[IO, MessageConsumer] =
+  def makeConsumer[F[_]: Sync: Logger](session: QueueSession, input: QueueName): Resource[F, MessageConsumer] =
     for {
       queue <- Resource.liftF(
-                logger.info(s"Opening MessageConsumer for $input, session: $session...") *>
-                  IO.delay(session.createQueue(input.value))
+                Logger[F].info(s"Opening MessageConsumer for $input, session: $session...") *>
+                  Sync[F].delay(session.createQueue(input.value))
               )
-      consumer <- Resource.fromAutoCloseable(IO.delay(session.createConsumer(queue)))
-      _        <- Resource.liftF(logger.info(s"Opened MessageConsumer for $input, session: $session."))
+      consumer <- Resource.fromAutoCloseable(Sync[F].delay(session.createConsumer(queue)))
+      _        <- Resource.liftF(Logger[F].info(s"Opened MessageConsumer for $input, session: $session."))
     } yield consumer
 
-  def makeProducer(session: QueueSession, queue: QueueName): Resource[IO, MessageProducer] =
+  def makeProducer[F[_]: Sync: Logger](session: QueueSession, queue: QueueName): Resource[F, MessageProducer] =
     for {
       queue <- Resource.liftF(
-                logger.info(s"Opening MessageProducer for $queue, session: $session...") *>
-                  IO.delay(session.createQueue(queue.value))
+                Logger[F].info(s"Opening MessageProducer for $queue, session: $session...") *>
+                  Sync[F].delay(session.createQueue(queue.value))
               )
-      producer <- Resource.fromAutoCloseable(IO.delay(session.createProducer(queue)))
-      _        <- Resource.liftF(logger.info(s"Opened MessageProducer for $queue, session: $session."))
+      producer <- Resource.fromAutoCloseable(Sync[F].delay(session.createProducer(queue)))
+      _        <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for $queue, session: $session."))
     } yield producer
 
   private def propertyNames(message: Message): List[String] = {
@@ -73,12 +72,6 @@ object jms {
       case _                    => Failure(new RuntimeException())
     }
 
-    private def slrCountPropertyName: String = "SLRCount"
-
-    def slrCount: Int = Try(message.getIntProperty(slrCountPropertyName)).toOption.getOrElse(0)
-
-    def increaseSlrCount: IO[Unit] = IO.delay(message.setIntProperty(slrCountPropertyName, slrCount + 1))
-
     def show: String =
       Try(
         s"""
@@ -98,7 +91,7 @@ object jms {
         """.stripMargin
       ).getOrElse("")
 
-    def copyMessage(session: Session): IO[Message] = IO {
+    def copyMessage[F[_]: Sync](session: Session): F[Message] = Sync[F].delay {
       message match {
         case message: TextMessage =>
           val newTextMessage = session.createTextMessage()
@@ -110,5 +103,4 @@ object jms {
       }
     }
   }
-
 }
