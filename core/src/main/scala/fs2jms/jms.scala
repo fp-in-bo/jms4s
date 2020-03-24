@@ -39,33 +39,17 @@ object jms {
       _        <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for $queue, session: $session."))
     } yield producer
 
-  private def propertyNames(message: Message): List[String] = {
-    val e   = message.getPropertyNames
-    val buf = collection.mutable.Buffer.empty[String]
-    while (e.hasMoreElements) {
-      val propertyName = e.nextElement.asInstanceOf[String]
-      buf += propertyName
-    }
-    buf.toList
-  }
-
-  private def copyMessageHeader(message: Message, newMessage: Message): Unit = {
-    newMessage.setJMSMessageID(message.getJMSMessageID)
-    newMessage.setJMSTimestamp(message.getJMSTimestamp)
-    newMessage.setJMSCorrelationID(message.getJMSCorrelationID)
-    newMessage.setJMSReplyTo(message.getJMSReplyTo)
-    newMessage.setJMSDestination(message.getJMSDestination)
-    newMessage.setJMSDeliveryMode(message.getJMSDeliveryMode)
-    newMessage.setJMSRedelivered(message.getJMSRedelivered)
-    newMessage.setJMSType(message.getJMSType)
-    newMessage.setJMSExpiration(message.getJMSExpiration)
-    newMessage.setJMSPriority(message.getJMSPriority)
-    propertyNames(message).foreach(
-      propertyName => newMessage.setObjectProperty(propertyName, message.getObjectProperty(propertyName))
-    )
-  }
-
   implicit class JMSMessage(private val message: Message) extends AnyVal {
+
+    def propertyNames: List[String] = {
+      val e   = message.getPropertyNames
+      val buf = collection.mutable.Buffer.empty[String]
+      while (e.hasMoreElements) {
+        val propertyName = e.nextElement.asInstanceOf[String]
+        buf += propertyName
+      }
+      buf.toList
+    }
 
     private def getStringContent: Try[String] = message match {
       case message: TextMessage => Try(message.getText)
@@ -75,7 +59,7 @@ object jms {
     def show: String =
       Try(
         s"""
-           |${propertyNames(message).map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")}
+           |${message.propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")}
            |JMSMessageID        ${message.getJMSMessageID}
            |JMSTimestamp        ${message.getJMSTimestamp}
            |JMSCorrelationID    ${message.getJMSCorrelationID}
@@ -90,6 +74,22 @@ object jms {
            |${getStringContent.getOrElse(s"Unsupported message type: $message")}
         """.stripMargin
       ).getOrElse("")
+
+    private def copyMessageHeader(message: Message, newMessage: Message): Unit = {
+      newMessage.setJMSMessageID(message.getJMSMessageID)
+      newMessage.setJMSTimestamp(message.getJMSTimestamp)
+      newMessage.setJMSCorrelationID(message.getJMSCorrelationID)
+      newMessage.setJMSReplyTo(message.getJMSReplyTo)
+      newMessage.setJMSDestination(message.getJMSDestination)
+      newMessage.setJMSDeliveryMode(message.getJMSDeliveryMode)
+      newMessage.setJMSRedelivered(message.getJMSRedelivered)
+      newMessage.setJMSType(message.getJMSType)
+      newMessage.setJMSExpiration(message.getJMSExpiration)
+      newMessage.setJMSPriority(message.getJMSPriority)
+      message.propertyNames.foreach(
+        propertyName => newMessage.setObjectProperty(propertyName, message.getObjectProperty(propertyName))
+      )
+    }
 
     def copyMessage[F[_]: Sync](session: Session): F[Message] = Sync[F].delay {
       message match {
