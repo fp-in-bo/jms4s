@@ -4,15 +4,15 @@ import cats.effect.{ Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQQueueConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
+import fs2jms.JmsQueueConnection
 import fs2jms.config.{ Config, Endpoint }
 import io.chrisdavenport.log4cats.Logger
-import javax.jms.QueueConnection
 
 object ibmMQ {
 
-  def makeConnection[F[_]: Sync: Logger](jms: Config): Resource[F, QueueConnection] =
+  def makeConnection[F[_]: Sync: Logger](jms: Config): Resource[F, JmsQueueConnection[F]] =
     for {
-      connection <- Resource.fromAutoCloseable[F, QueueConnection](
+      connection <- Resource.fromAutoCloseable(
                      Logger[F].info(s"Opening QueueConnection to MQ at ${hosts(jms.endpoints)}...") *>
                        Sync[F].delay {
                          val queueConnectionFactory: MQQueueConnectionFactory = new MQQueueConnectionFactory()
@@ -30,7 +30,7 @@ object ibmMQ {
                        }
                    )
       _ <- Resource.liftF(Logger[F].info(s"Opened QueueConnection $connection."))
-    } yield connection
+    } yield new JmsQueueConnection[F](connection)
 
   private def hosts(endpoints: List[Endpoint]): String = endpoints.map(e => s"${e.host}(${e.port})").mkString(",")
 

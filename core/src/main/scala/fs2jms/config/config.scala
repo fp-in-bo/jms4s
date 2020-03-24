@@ -16,6 +16,8 @@ case class Endpoint(host: String, port: Int)
 
 case class QueueName(value: String) extends AnyVal
 
+case class TopicName(value: String) extends AnyVal
+
 case class QueueManager(value: String) extends AnyVal
 
 case class Channel(value: String) extends AnyVal

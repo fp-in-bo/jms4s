@@ -1,30 +1,13 @@
 package fs2jms
 
-import cats.effect.{ Resource, Sync }
-import javax.jms.{ MessageConsumer, MessageProducer, QueueConnection, QueueSession }
+import javax.jms.Session
 
 object model {
 
-  sealed trait SessionType
-  // local transaction which may subsequently be committed or rolled back by calling the session's commit or rollback methods.
-  case object Transacted                           extends SessionType
-  case class Acknowledged(`type`: AcknowledgeType) extends SessionType
-
-  sealed trait AcknowledgeType
-  case object ClientAcknowledge extends AcknowledgeType
-  case object AutoAcknowledge   extends AcknowledgeType
-  case object DupsOkAcknowledge extends AcknowledgeType
-
-  class JmsQueueConnection[F[_]: Sync] private (private val value: QueueConnection) {
-
-    def createQueueSession(`type`: SessionType): Resource[F, JmsQueueSession] =
-      Resource.fromAutoCloseable(Sync[F].delay(JmsQueueSession(value.createQueueSession(transacted, acknowledgeMode))))
-  }
-
-  case class JmsQueueSession(value: QueueSession) {}
-
-  case class JmsMessageConsumer(value: MessageConsumer)
-
-  case class JmsMessageProducer(value: MessageProducer)
+  sealed abstract class SessionType(val rawTransacted: Boolean, val rawAcknowledgeMode: Int)
+  case object Transacted        extends SessionType(true, Session.SESSION_TRANSACTED)
+  case object ClientAcknowledge extends SessionType(false, Session.CLIENT_ACKNOWLEDGE)
+  case object AutoAcknowledge   extends SessionType(false, Session.AUTO_ACKNOWLEDGE)
+  case object DupsOkAcknowledge extends SessionType(false, Session.DUPS_OK_ACKNOWLEDGE)
 
 }
