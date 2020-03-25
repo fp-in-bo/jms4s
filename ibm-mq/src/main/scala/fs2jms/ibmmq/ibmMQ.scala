@@ -1,7 +1,7 @@
 package fs2jms.ibmmq
 
 import cats.data.NonEmptyList
-import cats.effect.{ Resource, Sync }
+import cats.effect.{ Blocker, Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQQueueConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
@@ -11,7 +11,7 @@ import io.chrisdavenport.log4cats.Logger
 
 object ibmMQ {
 
-  def makeConnection[F[_]: Sync: Logger](jms: Config): Resource[F, JmsQueueConnection[F]] =
+  def makeConnection[F[_]: Sync: Logger](jms: Config, blocker: Blocker): Resource[F, JmsQueueConnection[F]] =
     for {
       connection <- Resource.fromAutoCloseable(
                      Logger[F].info(s"Opening QueueConnection to MQ at ${hosts(jms.endpoints)}...") *>
@@ -34,7 +34,7 @@ object ibmMQ {
                        }
                    )
       _ <- Resource.liftF(Logger[F].info(s"Opened QueueConnection $connection."))
-    } yield new JmsQueueConnection[F](connection)
+    } yield new JmsQueueConnection[F](connection, blocker)
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
     endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")

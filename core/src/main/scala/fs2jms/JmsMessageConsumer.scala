@@ -6,11 +6,9 @@ import fs2jms.IOOps._
 import javax.jms.{ Message, MessageConsumer, TextMessage }
 import cats.implicits._
 import MessageOps._
-import scala.util.control.NoStackTrace
+import fs2jms.JmsMessageConsumer.UnsupportedMessage
 
-case class UnsupportedMessage(message: Message)
-    extends Exception("Unsupported Message: " + Show[Message].show(message))
-    with NoStackTrace
+import scala.util.control.NoStackTrace
 
 class JmsMessageConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (
   private[fs2jms] val wrapped: MessageConsumer
@@ -24,4 +22,10 @@ class JmsMessageConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (
         case x              => UnsupportedMessage(x).asLeft
       }
     }
+}
+
+object JmsMessageConsumer {
+  case class UnsupportedMessage(message: Message)
+      extends Exception("Unsupported Message: " + Show[Message].show(message))
+      with NoStackTrace
 }

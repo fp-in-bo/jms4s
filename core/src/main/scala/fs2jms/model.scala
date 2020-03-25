@@ -15,4 +15,10 @@ object model {
     case object DupsOkAcknowledge extends SessionType(false, Session.DUPS_OK_ACKNOWLEDGE)
   }
 
+  sealed abstract class TransactionResult extends Product with Serializable
+
+  object TransactionResult {
+    case object Commit   extends TransactionResult
+    case object Rollback extends TransactionResult
+  }
 }
