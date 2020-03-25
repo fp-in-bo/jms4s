@@ -2,11 +2,11 @@ package fs2jms
 
 import cats.Show
 import cats.effect.Sync
-import javax.jms.{ Destination, TextMessage }
+import javax.jms.{ Destination, Message, TextMessage }
 
 import scala.util.{ Failure, Try }
 
-class JmsTextMessage[F[_]: Sync](private[fs2jms] val wrapped: TextMessage) {
+class JmsTextMessage[F[_]: Sync] private[fs2jms] (private[fs2jms] val wrapped: TextMessage) {
 
   def setText(text: String): F[Unit] =
     Sync[F].delay(wrapped.setText(text))
@@ -23,6 +23,7 @@ class JmsTextMessage[F[_]: Sync](private[fs2jms] val wrapped: TextMessage) {
   def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): F[Unit] =
     Sync[F].delay(wrapped.setJMSCorrelationIDAsBytes(correlationId))
 
+  val getText: F[String]                         = Sync[F].delay(wrapped.getText)
   val getJMSMessageId: F[String]                 = Sync[F].delay(wrapped.getJMSMessageID)
   val getJMSTimestamp: F[Long]                   = Sync[F].delay(wrapped.getJMSTimestamp)
   val getJMSCorrelationId: F[String]             = Sync[F].delay(wrapped.getJMSCorrelationID)
@@ -46,15 +47,15 @@ class JmsTextMessage[F[_]: Sync](private[fs2jms] val wrapped: TextMessage) {
 
 }
 
-object JmsTextMessage {
-  implicit def showJmsTextMessage[F[_]]: Show[JmsTextMessage[F]] = Show.show[JmsTextMessage[F]] { message =>
-    def getStringContent: Try[String] = message.wrapped match {
+object MessageOps {
+  implicit def showMessage[F[_]]: Show[Message] = Show.show[Message] { message =>
+    def getStringContent: Try[String] = message match {
       case message: TextMessage => Try(message.getText)
       case _                    => Failure(new RuntimeException())
     }
 
     def propertyNames: List[String] = {
-      val e   = message.wrapped.getPropertyNames
+      val e   = message.getPropertyNames
       val buf = collection.mutable.Buffer.empty[String]
       while (e.hasMoreElements) {
         val propertyName = e.nextElement.asInstanceOf[String]
@@ -65,19 +66,19 @@ object JmsTextMessage {
 
     Try {
       s"""
-         |${propertyNames.map(pn => s"$pn       ${message.wrapped.getObjectProperty(pn)}").mkString("\n")}
-         |JMSMessageID        ${message.wrapped.getJMSMessageID}
-         |JMSTimestamp        ${message.wrapped.getJMSTimestamp}
-         |JMSCorrelationID    ${message.wrapped.getJMSCorrelationID}
-         |JMSReplyTo          ${message.wrapped.getJMSReplyTo}
-         |JMSDestination      ${message.wrapped.getJMSDestination}
-         |JMSDeliveryMode     ${message.wrapped.getJMSDeliveryMode}
-         |JMSRedelivered      ${message.wrapped.getJMSRedelivered}
-         |JMSType             ${message.wrapped.getJMSType}
-         |JMSExpiration       ${message.wrapped.getJMSExpiration}
-         |JMSPriority         ${message.wrapped.getJMSPriority}
+         |${propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")}
+         |JMSMessageID        ${message.getJMSMessageID}
+         |JMSTimestamp        ${message.getJMSTimestamp}
+         |JMSCorrelationID    ${message.getJMSCorrelationID}
+         |JMSReplyTo          ${message.getJMSReplyTo}
+         |JMSDestination      ${message.getJMSDestination}
+         |JMSDeliveryMode     ${message.getJMSDeliveryMode}
+         |JMSRedelivered      ${message.getJMSRedelivered}
+         |JMSType             ${message.getJMSType}
+         |JMSExpiration       ${message.getJMSExpiration}
+         |JMSPriority         ${message.getJMSPriority}
          |===============================================================================
-         |${getStringContent.getOrElse(s"Unsupported message type: ${message.wrapped}")}
+         |${getStringContent.getOrElse(s"Unsupported message type: ${message}")}
         """.stripMargin
     }.getOrElse("")
   }

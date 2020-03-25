@@ -13,18 +13,25 @@ stages:
   - name: release
     if: ((branch = master AND type = push) OR (tag IS present)) AND NOT fork
 
+services:
+  - docker
+
 scala_version_213: &scala_version_213 "2.13.1"
 scala_version_212: &scala_version_212 "2.12.10"
 
 jobs:
   include:
     # stage="test" if no stage is specified
+    - name: run ibm MQ
+      script: docker-compose up
     - name: test 2.13
       scala: *scala_version_213
       script: sbt ++$TRAVIS_SCALA_VERSION test
     - name: test 2.12
       scala: *scala_version_212
       script: sbt ++$TRAVIS_SCALA_VERSION test
+    - name: halt ibm MQ
+      script: docker-compose down
     - name: mima
       script: sbt +mimaReportBinaryIssues
     - name: site

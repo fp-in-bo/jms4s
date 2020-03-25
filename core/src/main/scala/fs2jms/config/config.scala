@@ -1,8 +1,10 @@
 package fs2jms.config
 
+import cats.data.NonEmptyList
+
 case class Config(
   qm: QueueManager,
-  endpoints: List[Endpoint],
+  endpoints: NonEmptyList[Endpoint],
   channel: Channel,
   username: Option[Username] = None,
   password: Option[Password] = None

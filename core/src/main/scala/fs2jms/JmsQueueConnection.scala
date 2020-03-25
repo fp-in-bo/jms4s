@@ -6,7 +6,7 @@ import io.chrisdavenport.log4cats.Logger
 import javax.jms.QueueConnection
 import cats.implicits._
 
-class JmsQueueConnection[F[_]: Sync: Logger](private[fs2jms] val wrapped: QueueConnection) {
+class JmsQueueConnection[F[_]: Sync: Logger] private[fs2jms] (private[fs2jms] val wrapped: QueueConnection) {
 
   def createQueueSession(sessionType: SessionType): Resource[F, JmsQueueSession[F]] =
     for {

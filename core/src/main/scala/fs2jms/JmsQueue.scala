@@ -6,6 +6,6 @@ sealed abstract class JmsDestination {
   private[fs2jms] val wrapped: Destination
 }
 
-class JmsQueue(private[fs2jms] val wrapped: Queue) extends JmsDestination
+class JmsQueue private[fs2jms] (private[fs2jms] val wrapped: Queue) extends JmsDestination
 
-class JmsTopic(private[fs2jms] val wrapped: Topic) extends JmsDestination
+class JmsTopic private[fs2jms] (private[fs2jms] val wrapped: Topic) extends JmsDestination

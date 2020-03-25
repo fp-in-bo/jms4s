@@ -1,5 +1,6 @@
 package fs2jms.ibmmq
 
+import cats.data.NonEmptyList
 import cats.effect.{ Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQQueueConnectionFactory
@@ -21,8 +22,11 @@ object ibmMQ {
                          queueConnectionFactory.setConnectionNameList(hosts(jms.endpoints))
                          queueConnectionFactory.setChannel(jms.channel.value)
 
-                         val connection = (jms.username, jms.password).mapN { (username, password) =>
-                           queueConnectionFactory.createQueueConnection(username.value, password.value)
+                         val connection = jms.username.map { (username) =>
+                           queueConnectionFactory.createQueueConnection(
+                             username.value,
+                             jms.password.map(_.value).getOrElse("")
+                           )
                          }.getOrElse(queueConnectionFactory.createQueueConnection)
 
                          connection.start()
@@ -32,6 +36,7 @@ object ibmMQ {
       _ <- Resource.liftF(Logger[F].info(s"Opened QueueConnection $connection."))
     } yield new JmsQueueConnection[F](connection)
 
-  private def hosts(endpoints: List[Endpoint]): String = endpoints.map(e => s"${e.host}(${e.port})").mkString(",")
+  private def hosts(endpoints: NonEmptyList[Endpoint]): String =
+    endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")
 
 }
