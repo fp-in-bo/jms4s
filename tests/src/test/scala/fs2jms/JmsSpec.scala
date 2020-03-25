@@ -1,6 +1,5 @@
 package fs2jms
 
-import cats.Show
 import cats.data.NonEmptyList
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ IO, Resource }
@@ -9,7 +8,6 @@ import fs2jms.ibmmq.ibmMQ._
 import fs2jms.model.SessionType
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import javax.jms.Message
 import org.scalatest.Failed
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers

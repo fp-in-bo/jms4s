@@ -7,3 +7,22 @@ ibmMQ:
   environment:
     - LICENSE=accept
     - MQ_QMGR_NAME=QM1
+# Users
+# Userid: admin Groups: mqm Password: passw0rd
+# Userid: app Groups: mqclient Password:
+
+#  Queues
+#  DEV.QUEUE.1
+#  DEV.QUEUE.2
+#  DEV.QUEUE.3
+#  DEV.DEAD.LETTER.QUEUE - Set as the Queue Manager's Dead Letter Queue.
+
+#  Channels
+#  DEV.ADMIN.SVRCONN - Set to only allow the admin user to connect into it and a Userid + Password must be supplied.
+#  DEV.APP.SVRCONN - Does not allow Administrator users to connect.
+
+#  Listener
+#  DEV.LISTENER.TCP - Listening on Port 1414.
+
+#  Topic
+#  DEV.BASE.TOPIC - With a topic string of dev/
