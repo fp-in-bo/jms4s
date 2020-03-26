@@ -5,6 +5,7 @@ val catsEffectV          = "2.0.0"
 val catsEffectScalaTestV = "0.4.0"
 val fs2V                 = "2.0.0"
 val log4catsV            = "1.0.1"
+val log4jSlf4jImplV      = "2.13.1"
 
 val kindProjectorV    = "0.11.0"
 val betterMonadicForV = "0.3.1"
@@ -25,7 +26,7 @@ lazy val ibmMQ = project
   .in(file("ibm-mq"))
   .settings(commonSettings)
   .settings(name := "fs2-jms-ibm-mq")
-  .settings(libraryDependencies ++= Seq("com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV))
+  .settings(libraryDependencies += "com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV)
   .settings(parallelExecution in Test := false)
   .dependsOn(core)
 
@@ -33,6 +34,7 @@ lazy val tests = project
   .in(file("tests"))
   .settings(commonSettings: _*)
   .enablePlugins(NoPublishPlugin)
+  .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
   .settings(parallelExecution in Test := false)
   .dependsOn(core, ibmMQ)
 
@@ -109,7 +111,6 @@ lazy val commonSettings = Seq(
     "org.typelevel"     %% "cats-effect"                   % catsEffectV,
     "co.fs2"            %% "fs2-core"                      % fs2V,
     "co.fs2"            %% "fs2-io"                        % fs2V,
-    "io.chrisdavenport" %% "log4cats-core"                 % log4catsV,
     "io.chrisdavenport" %% "log4cats-slf4j"                % log4catsV,
     "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
   )
