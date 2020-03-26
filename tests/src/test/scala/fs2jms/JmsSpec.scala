@@ -11,12 +11,14 @@ import fs2jms.ibmmq.ibmMQ._
 import fs2jms.model.{ SessionType, TransactionResult }
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.scalatest.Failed
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.{ Assertion, Failed }
+
+import scala.concurrent.duration._
 
 class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
-  implicit def logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   val blocker: Resource[IO, Blocker] = Blocker.apply
 
@@ -60,7 +62,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
       }
     }
 
-    "publish and then consume with local transaction" in {
+    "publish 100 messages and then consume them concurrently with local transactions" in {
       val jmsClient = new JmsClient[IO]
 
       val res = for {
@@ -68,31 +70,35 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
         session            <- connection.createQueueSession(SessionType.AutoAcknowledge)
         queue              <- Resource.liftF(session.createQueue(queueName))
         producer           <- session.createProducer(queue)
-        msg                <- Resource.liftF(session.createTextMessage("body"))
-        transactedConsumer <- jmsClient.createTransactedQueueConsumer(connection, queueName, 1)
-      } yield (transactedConsumer, producer, msg)
+        bodies             = (0 until 100).map(i => s"$i")
+        messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+        transactedConsumer <- jmsClient.createTransactedQueueConsumer(connection, queueName, 10)
+      } yield (transactedConsumer, producer, bodies.toSet, messages)
 
       res.use {
-        case (transactedConsumer, producer, msg) =>
+        case (transactedConsumer, producer, bodies, messages) =>
           for {
-            _            <- producer.send(msg)
-            assertionRef <- Ref.of[IO, Option[Assertion]](None)
-            _ <- transactedConsumer.handle {
-                  case ReceivedUnsupportedMessage(_, _) =>
-                    assertionRef
-                      .set(Some(Failed(s"Received not a TextMessage!").toSucceeded))
-                      .as(TransactionResult.Commit)
-                  case ReceivedTextMessage(tm, _) =>
-                    tm.getText
-                      .flatMap(
-                        body =>
-                          assertionRef
-                            .set(Some(body.shouldBe("body")))
-                      )
-                      .as(TransactionResult.Commit)
-                }
-            assertion <- assertionRef.get
-          } yield assertion.get
+            _        <- messages.traverse_(msg => producer.send(msg))
+            _        <- logger.info(s"Pushed ${messages.size} messages.")
+            received <- Ref.of[IO, Set[String]](Set())
+            consumerFiber <- transactedConsumer.handle {
+                              case ReceivedUnsupportedMessage(_, _) =>
+                                received
+                                  .update(_ + "") // failing..
+                                  .as(TransactionResult.Commit)
+                              case ReceivedTextMessage(tm, _) =>
+                                tm.getText
+                                  .flatMap(body => received.update(_ + body))
+                                  .as(TransactionResult.Commit)
+                            }.start
+            receivedMessages <- IO
+                                 .race(
+                                   received.get.iterateUntil(_.eqv(bodies)),
+                                   IO.sleep(2.seconds) >> received.get
+                                 )
+                                 .map(_.fold(identity, identity))
+                                 .guarantee(consumerFiber.cancel)
+          } yield receivedMessages.shouldBe(bodies)
       }
     }
   }

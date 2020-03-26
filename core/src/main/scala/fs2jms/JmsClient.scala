@@ -3,6 +3,7 @@ package fs2jms
 import cats.effect.concurrent.Ref
 import cats.effect.{ Concurrent, ContextShift, Resource }
 import cats.implicits._
+import fs2.Stream
 import fs2jms.JmsMessageConsumer.UnsupportedMessage
 import fs2jms.JmsPool.Received.{ ReceivedTextMessage, ReceivedUnsupportedMessage }
 import fs2jms.JmsPool.{ JmsResource, Received }
@@ -25,20 +26,33 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                     } yield JmsResource(session, consumer)
                   }
       pool <- Resource.liftF(Ref.of(resources))
-    } yield new JmsTransactedQueueConsumer(new JmsPool(pool))
+    } yield new JmsTransactedQueueConsumer(new JmsPool(pool), concurrencyLevel)
 }
 
-class JmsTransactedQueueConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (private val pool: JmsPool[F]) {
+class JmsTransactedQueueConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (
+  private val pool: JmsPool[F],
+  private val concurrencyLevel: Int
+) {
 
   def handle(f: Received[F] => F[TransactionResult]): F[Unit] =
-    for {
-      received <- pool.receive
-      tResult  <- f(received)
-      _ <- tResult match {
-            case TransactionResult.Commit   => pool.commit(received.resource)
-            case TransactionResult.Rollback => pool.rollback(received.resource)
-          }
-    } yield ()
+    Stream
+      .emits(0 until concurrencyLevel)
+      .as(
+        Stream.eval(
+          for {
+            received <- pool.receive
+            tResult  <- f(received)
+            _ <- tResult match {
+                  case TransactionResult.Commit   => pool.commit(received.resource)
+                  case TransactionResult.Rollback => pool.rollback(received.resource)
+                }
+          } yield ()
+        )
+      )
+      .parJoin(concurrencyLevel)
+      .repeat
+      .compile
+      .drain
 }
 
 class JmsPool[F[_]: Concurrent: ContextShift] private[fs2jms] (

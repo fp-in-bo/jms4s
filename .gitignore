@@ -8,3 +8,6 @@ tags
 
 .bloop
 .metals
+
+FFDC/
+mqjms.log.*
