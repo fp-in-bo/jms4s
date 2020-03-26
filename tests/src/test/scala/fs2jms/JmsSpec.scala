@@ -72,7 +72,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
         producer           <- session.createProducer(queue)
         bodies             = (0 until 100).map(i => s"$i")
         messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createTransactedQueueConsumer(connection, queueName, 10)
+        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, queueName, 10)
       } yield (transactedConsumer, producer, bodies.toSet, messages)
 
       res.use {

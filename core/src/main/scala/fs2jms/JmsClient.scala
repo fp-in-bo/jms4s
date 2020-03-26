@@ -12,11 +12,11 @@ import fs2jms.model.{ SessionType, TransactionResult }
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
-  def createTransactedQueueConsumer(
+  def createQueueTransactedConsumer(
     connection: JmsQueueConnection[F],
     queueName: QueueName,
     concurrencyLevel: Int
-  ): Resource[F, JmsTransactedQueueConsumer[F]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F]] =
     for {
       queue <- Resource.liftF(connection.createQueueSession(SessionType.Transacted).use(_.createQueue(queueName)))
       resources <- (0 until concurrencyLevel).toList.traverse[Resource[F, *], JmsResource[F]] { _ =>
@@ -26,10 +26,10 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                     } yield JmsResource(session, consumer)
                   }
       pool <- Resource.liftF(Ref.of(resources))
-    } yield new JmsTransactedQueueConsumer(new JmsPool(pool), concurrencyLevel)
+    } yield new JmsQueueTransactedConsumer(new JmsPool(pool), concurrencyLevel)
 }
 
-class JmsTransactedQueueConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (
+class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift] private[fs2jms] (
   private val pool: JmsPool[F],
   private val concurrencyLevel: Int
 ) {
