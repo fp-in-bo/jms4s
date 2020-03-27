@@ -17,7 +17,7 @@ Support at the very least the following features:
   - [ ] createQueuePublisher
   - [ ] createTopicPublisher
 
-- Consuming and Publishing within the same transaction
+- [x] Consuming and Publishing within the same transaction
 
 ## [Head on over to the microsite](https://al333z.github.io/fs2-jms)
 

@@ -1,6 +1,8 @@
 package fs2jms.config
 
+import cats.Order
 import cats.data.NonEmptyList
+import cats.implicits._
 
 case class Config(
   qm: QueueManager,
@@ -17,6 +19,12 @@ case class Password(value: String) extends AnyVal
 case class Endpoint(host: String, port: Int)
 
 case class QueueName(value: String) extends AnyVal
+
+object QueueName {
+  implicit val orderingQueueName: Order[QueueName] = Order.from[QueueName] {
+    case (x, y) => Order[String].compare(x.value, y.value)
+  }
+}
 
 case class TopicName(value: String) extends AnyVal
 

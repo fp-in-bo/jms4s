@@ -76,9 +76,9 @@ lazy val site = project
       scalacOptions in Tut --= Seq(
         "-Xfatal-warnings",
         "-Ywarn-unused-import",
+        "-Ywarn-unused:imports",
         "-Ywarn-numeric-widen",
         "-Ywarn-dead-code",
-        "-Ywarn-unused:imports",
         "-Xlint:-missing-interpolator,_"
       ),
       micrositePushSiteWith := GitHub4s,

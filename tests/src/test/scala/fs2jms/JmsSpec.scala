@@ -5,7 +5,8 @@ import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ Blocker, IO, Resource }
 import cats.implicits._
-import fs2jms.JmsPool.Received.{ ReceivedTextMessage, ReceivedUnsupportedMessage }
+import fs2jms.JmsConsumerPool.Received.{ ReceivedTextMessage, ReceivedUnsupportedMessage }
+import fs2jms.JmsMessageConsumer.UnsupportedMessage
 import fs2jms.config._
 import fs2jms.ibmmq.ibmMQ._
 import fs2jms.model.{ SessionType, TransactionResult }
@@ -36,14 +37,19 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
       )
   )
 
+  val nMessages: Int              = 100
+  val timeout: FiniteDuration     = 2.seconds
+  val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
+  val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
+  val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
+
   "Basic jms ops" - {
-    val queueName = QueueName("DEV.QUEUE.1")
 
     "publish and then receive" in {
       val res = for {
         connection <- connectionRes
         session    <- connection.createQueueSession(SessionType.AutoAcknowledge)
-        queue      <- Resource.liftF(session.createQueue(queueName))
+        queue      <- Resource.liftF(session.createQueue(inputQueueName))
         consumer   <- session.createConsumer(queue)
         producer   <- session.createProducer(queue)
         msg        <- Resource.liftF(session.createTextMessage("body"))
@@ -61,18 +67,20 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
           } yield assertion
       }
     }
+  }
 
-    "publish 100 messages and then consume them concurrently with local transactions" in {
+  "High level api" - {
+    s"publish $nMessages messages and then consume them concurrently with local transactions" in {
       val jmsClient = new JmsClient[IO]
 
       val res = for {
         connection         <- connectionRes
         session            <- connection.createQueueSession(SessionType.AutoAcknowledge)
-        queue              <- Resource.liftF(session.createQueue(queueName))
+        queue              <- Resource.liftF(session.createQueue(inputQueueName))
         producer           <- session.createProducer(queue)
-        bodies             = (0 until 100).map(i => s"$i")
+        bodies             = (0 until nMessages).map(i => s"$i")
         messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, queueName, 10)
+        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, inputQueueName, 10)
       } yield (transactedConsumer, producer, bodies.toSet, messages)
 
       res.use {
@@ -88,18 +96,118 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
                                   .as(TransactionResult.Commit)
                               case ReceivedTextMessage(tm, _) =>
                                 tm.getText
-                                  .flatMap(body => received.update(_ + body))
+                                  .flatMap(body => received.update(_ + body)) // accumulate received messages
                                   .as(TransactionResult.Commit)
                             }.start
-            receivedMessages <- IO
-                                 .race(
-                                   received.get.iterateUntil(_.eqv(bodies)),
-                                   IO.sleep(2.seconds) >> received.get
-                                 )
-                                 .map(_.fold(identity, identity))
+            _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
+            receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
                                  .guarantee(consumerFiber.cancel)
           } yield receivedMessages.shouldBe(bodies)
       }
     }
+
+    s"publish $nMessages messages, consume them concurrently with local transactions and then republishing to an other queue" in {
+      val jmsClient = new JmsClient[IO]
+
+      val res = for {
+        connection     <- connectionRes
+        session        <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        inputQueue     <- Resource.liftF(session.createQueue(inputQueueName))
+        outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
+        inputProducer  <- session.createProducer(inputQueue)
+        outputConsumer <- session.createConsumer(outputQueue)
+        bodies         = (0 until nMessages).map(i => s"$i")
+        messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+        transactedConsumer <- jmsClient.createQueueTransactedConsumerToProducer(
+                               connection,
+                               inputQueueName,
+                               outputQueueName1,
+                               10
+                             )
+      } yield (transactedConsumer, inputProducer, outputConsumer, bodies.toSet, messages)
+
+      res.use {
+        case (transactedConsumer, inputProducer, outputConsumer, bodies, messages) =>
+          for {
+            _ <- messages.traverse_(msg => inputProducer.send(msg))
+            _ <- logger.info(s"Pushed ${messages.size} messages.")
+            consumerToProducerFiber <- transactedConsumer.handle {
+                                        case ReceivedUnsupportedMessage(_, _) =>
+                                          IO.pure(TransactionResult.Commit)
+                                        case ReceivedTextMessage(tm, res) =>
+                                          res.producing.publish(tm).as(TransactionResult.Commit)
+                                      }.start
+            _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
+            received <- Ref.of[IO, Set[String]](Set())
+            receivedMessages <- (receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get)
+                                 .guarantee(consumerToProducerFiber.cancel)
+          } yield receivedMessages.shouldBe(bodies)
+      }
+    }
+
+    s"publish $nMessages messages, consume them concurrently with local transactions and then republishing to other queues" in {
+      val jmsClient = new JmsClient[IO]
+
+      val res = for {
+        connection      <- connectionRes
+        session         <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        inputQueue      <- Resource.liftF(session.createQueue(inputQueueName))
+        outputQueue1    <- Resource.liftF(session.createQueue(outputQueueName1))
+        outputQueue2    <- Resource.liftF(session.createQueue(outputQueueName2))
+        inputProducer   <- session.createProducer(inputQueue)
+        outputConsumer1 <- session.createConsumer(outputQueue1)
+        outputConsumer2 <- session.createConsumer(outputQueue2)
+        bodies          = (0 until nMessages).map(i => s"$i")
+        messages        <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+        transactedConsumer <- jmsClient.createQueueTransactedConsumerToProducers(
+                               connection,
+                               inputQueueName,
+                               NonEmptyList.of(outputQueueName1, outputQueueName2),
+                               10
+                             )
+      } yield (transactedConsumer, inputProducer, outputConsumer1, outputConsumer2, bodies.toSet, messages)
+
+      res.use {
+        case (transactedConsumer, inputProducer, outputConsumer1, outputConsumer2, bodies, messages) =>
+          for {
+            _ <- messages.traverse_(msg => inputProducer.send(msg))
+            _ <- logger.info(s"Pushed ${messages.size} messages.")
+            consumerToProducerFiber <- transactedConsumer.handle {
+                                        case ReceivedUnsupportedMessage(_, _) =>
+                                          IO.pure(TransactionResult.Commit)
+                                        case ReceivedTextMessage(tm, res) =>
+                                          tm.getText
+                                            .flatMap(
+                                              text =>
+                                                if (text.toInt % 2 == 0)
+                                                  res.producing.lookup(outputQueueName1).get.publish(tm)
+                                                else
+                                                  res.producing.lookup(outputQueueName2).get.publish(tm)
+                                            )
+                                            .as(TransactionResult.Commit)
+                                      }.start
+            _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
+            received1 <- Ref.of[IO, Set[String]](Set())
+            received2 <- Ref.of[IO, Set[String]](Set())
+            receivedMessages <- ((
+                                 receiveUntil(outputConsumer1, received1, nMessages / 2),
+                                 receiveUntil(outputConsumer2, received2, nMessages / 2)
+                               ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
+                                 .guarantee(consumerToProducerFiber.cancel)
+          } yield receivedMessages.shouldBe(bodies)
+      }
+    }
   }
+
+  private def receiveUntil(
+    consumer: JmsMessageConsumer[IO],
+    received: Ref[IO, Set[String]],
+    nMessages: Int
+  ): IO[Set[String]] =
+    (consumer.receiveTextMessage.flatMap { // receive
+      case Left(UnsupportedMessage(_)) =>
+        received.update(_ + "") // failing..
+      case Right(tm) => // accumulate messages from output queue
+        tm.getText.flatMap(body => received.update(_ + body))
+    } *> received.get).iterateUntil(_.size == nMessages)
 }
