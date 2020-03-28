@@ -38,7 +38,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
   val nMessages: Int              = 100
   val poolSize: Int               = 10
-  val timeout: FiniteDuration     = 1.seconds
+  val timeout: FiniteDuration     = 2.seconds
   val delay: FiniteDuration       = 20.millis
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
   val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
