@@ -12,7 +12,6 @@ import fs2jms.ibmmq.ibmMQ._
 import fs2jms.model.{ SessionType, TransactionResult }
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import org.scalatest.Failed
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -38,33 +37,62 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
   )
 
   val nMessages: Int              = 100
-  val timeout: FiniteDuration     = 2.seconds
+  val poolSize: Int               = 10
+  val timeout: FiniteDuration     = 1.seconds
+  val delay: FiniteDuration       = 20.millis
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
   val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
 
   "Basic jms ops" - {
+    val res = for {
+      connection <- connectionRes
+      session    <- connection.createSession(SessionType.AutoAcknowledge)
+      queue      <- Resource.liftF(session.createQueue(inputQueueName))
+      consumer   <- session.createConsumer(queue)
+      producer   <- session.createProducer(queue)
+      msg        <- Resource.liftF(session.createTextMessage("body"))
+    } yield (consumer, producer, msg)
 
     "publish and then receive" in {
-      val res = for {
-        connection <- connectionRes
-        session    <- connection.createSession(SessionType.AutoAcknowledge)
-        queue      <- Resource.liftF(session.createQueue(inputQueueName))
-        consumer   <- session.createConsumer(queue)
-        producer   <- session.createProducer(queue)
-        msg        <- Resource.liftF(session.createTextMessage("body"))
-      } yield (consumer, producer, msg)
-
       res.use {
         case (consumer, producer, msg) =>
           for {
             _        <- producer.send(msg)
             received <- consumer.receiveTextMessage
-            assertion <- received match {
-                          case Left(_)   => IO.delay(Failed(s"Received not a TextMessage!").toSucceeded)
-                          case Right(tm) => tm.getText.map(_.shouldBe("body"))
-                        }
-          } yield assertion
+            text <- received match {
+                     case Left(_)   => IO.raiseError(new RuntimeException("Received something bad!"))
+                     case Right(tm) => tm.getText
+                   }
+          } yield text.shouldBe("body")
+      }
+    }
+
+    "publish and then receive with a delay" in {
+      def receiveAfter(received: Ref[IO, Set[String]], duration: FiniteDuration) =
+        for {
+          tooEarly <- received.get
+          _ <- if (tooEarly.nonEmpty)
+                IO.raiseError(new RuntimeException("Delay has not been respected!"))
+              else
+                IO.unit
+          _      <- IO.sleep(duration)
+          gotcha <- received.get
+        } yield gotcha
+
+      res.use {
+        case (consumer, producer, msg) =>
+          for {
+            _        <- producer.setDeliveryDelay(delay)
+            _        <- producer.send(msg)
+            received <- Ref.of[IO, Set[String]](Set())
+            consumerFiber <- consumer.receiveTextMessage.flatMap {
+                              case Left(_)   => IO.raiseError(new RuntimeException("Received something bad!"))
+                              case Right(tm) => tm.getText.flatMap(body => received.update(_ + body))
+
+                            }.start
+            gotcha <- receiveAfter(received, delay).guarantee(consumerFiber.cancel)
+          } yield gotcha.shouldBe(Set("body"))
       }
     }
   }
@@ -80,7 +108,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
         producer           <- session.createProducer(queue)
         bodies             = (0 until nMessages).map(i => s"$i")
         messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, inputQueueName, 10)
+        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, inputQueueName, poolSize)
       } yield (transactedConsumer, producer, bodies.toSet, messages)
 
       res.use {
@@ -122,7 +150,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
                                connection,
                                inputQueueName,
                                outputQueueName1,
-                               10
+                               poolSize
                              )
       } yield (transactedConsumer, inputProducer, outputConsumer, bodies.toSet, messages)
 
@@ -163,7 +191,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
                                connection,
                                inputQueueName,
                                NonEmptyList.of(outputQueueName1, outputQueueName2),
-                               10
+                               poolSize
                              )
       } yield (transactedConsumer, inputProducer, outputConsumer1, outputConsumer2, bodies.toSet, messages)
 
