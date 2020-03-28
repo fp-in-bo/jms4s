@@ -1,4 +1,4 @@
-package fs2jms.config
+package jms4s.config
 
 import cats.Order
 import cats.data.NonEmptyList

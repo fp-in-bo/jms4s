@@ -1,9 +1,9 @@
-package fs2jms
+package jms4s
 
 import cats.effect.Sync
 import javax.jms.TextMessage
 
-class JmsTextMessage[F[_]: Sync] private[fs2jms] (override private[fs2jms] val wrapped: TextMessage)
+class JmsTextMessage[F[_]: Sync] private[jms4s] (override private[jms4s] val wrapped: TextMessage)
     extends JmsMessage[F](wrapped) {
 
   def setText(text: String): F[Unit] =

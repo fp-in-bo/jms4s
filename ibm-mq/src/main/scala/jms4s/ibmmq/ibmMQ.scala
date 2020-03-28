@@ -1,13 +1,13 @@
-package fs2jms.ibmmq
+package jms4s.ibmmq
 
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
-import fs2jms.JmsConnection
-import fs2jms.config.{ Config, Endpoint }
 import io.chrisdavenport.log4cats.Logger
+import jms4s.JmsConnection
+import jms4s.config.{ Config, Endpoint }
 
 object ibmMQ {
 

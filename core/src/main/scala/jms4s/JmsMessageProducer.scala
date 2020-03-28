@@ -1,11 +1,11 @@
-package fs2jms
+package jms4s
 
 import cats.effect.Sync
 import javax.jms.MessageProducer
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsMessageProducer[F[_]: Sync] private[fs2jms] (private[fs2jms] val value: MessageProducer) {
+class JmsMessageProducer[F[_]: Sync] private[jms4s] (private[jms4s] val value: MessageProducer) {
 
   def send(message: JmsMessage[F]): F[Unit] =
     Sync[F].delay(value.send(message.wrapped))

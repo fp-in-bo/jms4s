@@ -1,4 +1,4 @@
-package fs2jms
+package jms4s
 
 import cats.effect.{ Concurrent, ContextShift, Sync }
 

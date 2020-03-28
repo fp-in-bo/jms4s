@@ -1,16 +1,16 @@
-package fs2jms
+package jms4s
 
 import cats.Show
 import cats.effect.Sync
 import cats.implicits._
-import fs2jms.JmsMessage.UnsupportedMessage
-import fs2jms.MessageOps._
+import JmsMessage.UnsupportedMessage
+import MessageOps._
 import javax.jms.{ Destination, Message, TextMessage }
 
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Try }
 
-class JmsMessage[F[_]: Sync] private[fs2jms] (private[fs2jms] val wrapped: Message) {
+class JmsMessage[F[_]: Sync] private[jms4s] (private[jms4s] val wrapped: Message) {
 
   def attemptAsJmsTextMessage: Either[UnsupportedMessage, JmsTextMessage[F]] = wrapped match {
     case textMessage: TextMessage => new JmsTextMessage(textMessage).asRight

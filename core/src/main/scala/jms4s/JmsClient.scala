@@ -1,13 +1,16 @@
-package fs2jms
+package jms4s
 
 import cats.data.{ NonEmptyList, NonEmptyMap }
 import cats.effect.concurrent.Ref
 import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
-import fs2jms.JmsConsumerPool.{ JmsResource, Received }
-import fs2jms.config.QueueName
-import fs2jms.model.{ SessionType, TransactionResult }
+import jms4s.JmsConsumerPool.{ JmsResource, Received }
+import jms4s.config.QueueName
+import jms4s.model.{ SessionType, TransactionResult }
+import jms4s.config.QueueName
+import jms4s.model.SessionType.Transacted
+import jms4s.model.{ SessionType, TransactionResult }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
@@ -19,7 +22,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     concurrencyLevel: Int
   ): Resource[F, JmsQueueTransactedConsumer[F, Unit]] =
     for {
-      queue <- Resource.liftF(connection.createSession(SessionType.Transacted).use(_.createQueue(queueName)))
+      queue <- Resource.liftF(connection.createSession(Transacted).use(_.createQueue(queueName)))
       resources <- (0 until concurrencyLevel).toList.traverse[Resource[F, *], JmsResource[F, Unit]] { _ =>
                     for {
                       session  <- connection.createSession(SessionType.Transacted)
@@ -93,7 +96,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     } yield new JmsQueueTransactedConsumer(new JmsConsumerPool(pool), concurrencyLevel)
 }
 
-class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[fs2jms] (
+class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[jms4s] (
   private val pool: JmsConsumerPool[F, R],
   private val concurrencyLevel: Int
 ) {
@@ -119,7 +122,7 @@ class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[fs2j
       .drain
 }
 
-class JmsQueueProducer[F[_]: Sync: ContextShift] private[fs2jms] (private[fs2jms] val producer: JmsMessageProducer[F]) {
+class JmsQueueProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
 
   def publish(message: JmsMessage[F]): F[Unit] =
     producer.send(message)
@@ -129,7 +132,7 @@ class JmsQueueProducer[F[_]: Sync: ContextShift] private[fs2jms] (private[fs2jms
 
 }
 
-class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[fs2jms] (
+class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[jms4s] (
   private val pool: Ref[F, List[JmsResource[F, R]]]
 ) {
 
@@ -153,7 +156,7 @@ class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[fs2jms] (
 }
 
 object JmsConsumerPool {
-  case class JmsResource[F[_], R] private[fs2jms] (
+  case class JmsResource[F[_], R] private[jms4s] (
     session: JmsSession[F],
     consumer: JmsMessageConsumer[F],
     producing: R

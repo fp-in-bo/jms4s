@@ -1,13 +1,14 @@
-package fs2jms
+package jms4s
 
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
-import fs2jms.config.{ QueueName, TopicName }
+import jms4s.config.TopicName
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.Session
+import jms4s.config.{ QueueName, TopicName }
 
-class JmsSession[F[_]: Sync: Logger] private[fs2jms] (
-  private[fs2jms] val wrapped: Session,
+class JmsSession[F[_]: Sync: Logger] private[jms4s] (
+  private[jms4s] val wrapped: Session,
   private val blocker: Blocker
 ) {
 

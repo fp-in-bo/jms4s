@@ -11,7 +11,7 @@ val kindProjectorV    = "0.11.0"
 val betterMonadicForV = "0.3.1"
 
 // Projects
-lazy val `fs2-jms` = project
+lazy val jms4s = project
   .in(file("."))
   .enablePlugins(NoPublishPlugin)
   .aggregate(core, ibmMQ, tests, examples, site)
@@ -19,13 +19,13 @@ lazy val `fs2-jms` = project
 lazy val core = project
   .in(file("core"))
   .settings(commonSettings)
-  .settings(name := "fs2-jms")
+  .settings(name := "jms4s")
   .settings(parallelExecution in Test := false)
 
 lazy val ibmMQ = project
   .in(file("ibm-mq"))
   .settings(commonSettings)
-  .settings(name := "fs2-jms-ibm-mq")
+  .settings(name := "jms4s-ibm-mq")
   .settings(libraryDependencies += "com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV)
   .settings(parallelExecution in Test := false)
   .dependsOn(core)
@@ -54,12 +54,12 @@ lazy val site = project
   .settings {
     import microsites._
     Seq(
-      micrositeName := "fs2-jms",
+      micrositeName := "jms4s",
       micrositeDescription := "fs2/cats-effects wrapper for jms",
       micrositeAuthor := "Alessandro Zoffoli",
       micrositeGithubOwner := "al333z",
-      micrositeGithubRepo := "fs2-jms",
-      micrositeBaseUrl := "/fs2-jms",
+      micrositeGithubRepo := "jms4s",
+      micrositeBaseUrl := "/jms4s",
       micrositeFooterText := None,
       micrositeHighlightTheme := "atom-one-light",
       micrositePalette := Map(
@@ -123,7 +123,7 @@ inThisBuild(
     developers := List(
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z"))
     ),
-    homepage := Some(url("https://github.com/al333z/fs2-jms")),
+    homepage := Some(url("https://github.com/al333z/jms4s")),
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
     pomIncludeRepository := { _ =>
       false
@@ -133,7 +133,7 @@ inThisBuild(
       "-sourcepath",
       (baseDirectory in LocalRootProject).value.getAbsolutePath,
       "-doc-source-url",
-      "https://github.com/al333z/fs2-jms/blob/v" + version.value + "€{FILE_PATH}.scala"
+      "https://github.com/al333z/jms4s/blob/v" + version.value + "€{FILE_PATH}.scala"
     )
   )
 )
