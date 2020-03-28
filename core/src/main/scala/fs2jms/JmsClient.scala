@@ -5,9 +5,7 @@ import cats.effect.concurrent.Ref
 import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
-import fs2jms.JmsConsumerPool.Received.{ ReceivedTextMessage, ReceivedUnsupportedMessage }
 import fs2jms.JmsConsumerPool.{ JmsResource, Received }
-import fs2jms.JmsMessageConsumer.UnsupportedMessage
 import fs2jms.config.QueueName
 import fs2jms.model.{ SessionType, TransactionResult }
 
@@ -123,10 +121,10 @@ class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[fs2j
 
 class JmsQueueProducer[F[_]: Sync: ContextShift] private[fs2jms] (private[fs2jms] val producer: JmsMessageProducer[F]) {
 
-  def publish(message: JmsTextMessage[F]): F[Unit] =
+  def publish(message: JmsMessage[F]): F[Unit] =
     producer.send(message)
 
-  def publish(message: JmsTextMessage[F], delay: FiniteDuration): F[Unit] =
+  def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
     producer.setDeliveryDelay(delay) >> producer.send(message) >> producer.setDeliveryDelay(0.millis)
 
 }
@@ -138,11 +136,8 @@ class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[fs2jms] (
   val receive: F[Received[F, R]] =
     for {
       resource <- pool.modify(resources => (resources.tail, resources.head))
-      received <- resource.consumer.receiveTextMessage.map {
-                   case Left(um)  => ReceivedUnsupportedMessage(um, resource)
-                   case Right(tm) => ReceivedTextMessage(tm, resource)
-                 }
-    } yield received
+      msg      <- resource.consumer.receiveJmsMessage
+    } yield Received(msg, resource)
 
   def commit(resource: JmsResource[F, R]): F[Unit] =
     for {
@@ -164,15 +159,5 @@ object JmsConsumerPool {
     producing: R
   )
 
-  sealed abstract class Received[F[_], R] extends Product with Serializable {
-    private[fs2jms] val resource: JmsResource[F, R]
-  }
-
-  object Received {
-    case class ReceivedTextMessage[F[_], R] private (message: JmsTextMessage[F], resource: JmsResource[F, R])
-        extends Received[F, R]
-    case class ReceivedUnsupportedMessage[F[_], R] private (message: UnsupportedMessage, resource: JmsResource[F, R])
-        extends Received[F, R]
-  }
-
+  case class Received[F[_], R] private (message: JmsMessage[F], resource: JmsResource[F, R])
 }
