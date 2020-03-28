@@ -58,7 +58,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
           for {
             _        <- producer.send(msg)
             received <- consumer.receiveJmsMessage
-            text     <- IO.fromEither(received.asJmsTextMessage).flatMap(_.getText)
+            text     <- received.asJmsTextMessage.flatMap(_.getText)
           } yield text.shouldBe("body")
       }
     }
@@ -81,11 +81,12 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
             _        <- producer.setDeliveryDelay(delay)
             _        <- producer.send(msg)
             received <- Ref.of[IO, Set[String]](Set())
-            consumerFiber <- consumer.receiveJmsMessage.flatMap { msg =>
-                              IO.fromEither(msg.asJmsTextMessage)
-                                .flatMap(_.getText)
-                                .flatMap(body => received.update(_ + body))
-                            }.start
+            consumerFiber <- (for {
+                              msg  <- consumer.receiveJmsMessage
+                              tm   <- msg.asJmsTextMessage
+                              body <- tm.getText
+                              _    <- received.update(_ + body)
+                            } yield ()).start
             gotcha <- receiveAfter(received, delay).guarantee(consumerFiber.cancel)
           } yield gotcha.shouldBe(Set("body"))
       }
@@ -113,10 +114,11 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
             _        <- logger.info(s"Pushed ${messages.size} messages.")
             received <- Ref.of[IO, Set[String]](Set())
             consumerFiber <- transactedConsumer.handle { rec =>
-                              IO.fromEither(rec.message.asJmsTextMessage)
-                                .flatMap(_.getText)
-                                .flatMap(body => received.update(_ + body))
-                                .as(TransactionResult.Commit)
+                              for {
+                                tm   <- rec.message.asJmsTextMessage
+                                body <- tm.getText
+                                _    <- received.update(_ + body)
+                              } yield TransactionResult.Commit
                             }.start
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
@@ -191,20 +193,14 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
             consumerToProducerFiber <- transactedConsumer.handle { r =>
-                                        IO.fromEither(r.message.asJmsTextMessage)
-                                          .flatMap(
-                                            tm =>
-                                              tm.getText
-                                                .flatMap(
-                                                  text =>
-                                                    if (text.toInt % 2 == 0)
-                                                      r.resource.producing.lookup(outputQueueName1).get.publish(tm)
-                                                    else
-                                                      r.resource.producing.lookup(outputQueueName2).get.publish(tm)
-                                                )
-                                                .as(TransactionResult.Commit)
-                                          )
-
+                                        for {
+                                          tm   <- r.message.asJmsTextMessage
+                                          text <- tm.getText
+                                          _ <- if (text.toInt % 2 == 0)
+                                                r.resource.producing.lookup(outputQueueName1).get.publish(tm)
+                                              else
+                                                r.resource.producing.lookup(outputQueueName2).get.publish(tm)
+                                        } yield TransactionResult.Commit
                                       }.start
             _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
             received1 <- Ref.of[IO, Set[String]](Set())
@@ -225,7 +221,6 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
     nMessages: Int
   ): IO[Set[String]] =
     (consumer.receiveJmsMessage.flatMap { msg => // receive
-      IO.fromEither(msg.asJmsTextMessage)
-        .flatMap(tm => tm.getText.flatMap(body => received.update(_ + body)))
+      msg.asJmsTextMessage.flatMap(tm => tm.getText.flatMap(body => received.update(_ + body)))
     } *> received.get).iterateUntil(_.size == nMessages)
 }

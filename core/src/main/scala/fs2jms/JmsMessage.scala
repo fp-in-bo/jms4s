@@ -12,9 +12,14 @@ import scala.util.{ Failure, Try }
 
 class JmsMessage[F[_]: Sync] private[fs2jms] (private[fs2jms] val wrapped: Message) {
 
-  def asJmsTextMessage: Either[UnsupportedMessage, JmsTextMessage[F]] = wrapped match {
+  def attemptAsJmsTextMessage: Either[UnsupportedMessage, JmsTextMessage[F]] = wrapped match {
     case textMessage: TextMessage => new JmsTextMessage(textMessage).asRight
     case _                        => UnsupportedMessage(wrapped).asLeft
+  }
+
+  def asJmsTextMessage: F[JmsTextMessage[F]] = wrapped match {
+    case textMessage: TextMessage => new JmsTextMessage(textMessage).pure[F]
+    case _                        => Sync[F].raiseError(UnsupportedMessage(wrapped))
   }
 
   def setJMSCorrelationId(correlationId: String): F[Unit] =
