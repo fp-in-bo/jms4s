@@ -23,7 +23,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
   val blocker: Resource[IO, Blocker] = Blocker.apply
 
-  val connectionRes: Resource[IO, JmsQueueConnection[IO]] = blocker.flatMap(
+  val connectionRes: Resource[IO, JmsConnection[IO]] = blocker.flatMap(
     blocker =>
       makeConnection[IO](
         Config(
@@ -48,7 +48,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
     "publish and then receive" in {
       val res = for {
         connection <- connectionRes
-        session    <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        session    <- connection.createSession(SessionType.AutoAcknowledge)
         queue      <- Resource.liftF(session.createQueue(inputQueueName))
         consumer   <- session.createConsumer(queue)
         producer   <- session.createProducer(queue)
@@ -75,7 +75,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
       val res = for {
         connection         <- connectionRes
-        session            <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        session            <- connection.createSession(SessionType.AutoAcknowledge)
         queue              <- Resource.liftF(session.createQueue(inputQueueName))
         producer           <- session.createProducer(queue)
         bodies             = (0 until nMessages).map(i => s"$i")
@@ -111,7 +111,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
       val res = for {
         connection     <- connectionRes
-        session        <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        session        <- connection.createSession(SessionType.AutoAcknowledge)
         inputQueue     <- Resource.liftF(session.createQueue(inputQueueName))
         outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
         inputProducer  <- session.createProducer(inputQueue)
@@ -150,7 +150,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
 
       val res = for {
         connection      <- connectionRes
-        session         <- connection.createQueueSession(SessionType.AutoAcknowledge)
+        session         <- connection.createSession(SessionType.AutoAcknowledge)
         inputQueue      <- Resource.liftF(session.createQueue(inputQueueName))
         outputQueue1    <- Resource.liftF(session.createQueue(outputQueueName1))
         outputQueue2    <- Resource.liftF(session.createQueue(outputQueueName2))
