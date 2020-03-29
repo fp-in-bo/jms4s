@@ -29,22 +29,13 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
       _ <- Resource.liftF(Logger[F].info(s"Opened MessageConsumer for ${queue.wrapped}, session: $wrapped."))
     } yield new JmsMessageConsumer[F](consumer)
 
-  def createProducer(queue: JmsQueue): Resource[F, JmsMessageProducer[F]] =
+  def createProducer(jmsDestination: JmsDestination): Resource[F, JmsMessageProducer[F]] =
     for {
       producer <- Resource.fromAutoCloseable(
-                   Logger[F].info(s"Opening MessageProducer for queue ${queue.wrapped}, session: $wrapped...") *>
-                     Sync[F].delay(wrapped.createProducer(queue.wrapped))
+                   Logger[F].info(s"Opening MessageProducer for ${jmsDestination.wrapped}, session: $wrapped...") *>
+                     Sync[F].delay(wrapped.createProducer(jmsDestination.wrapped))
                  )
-      _ <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for queue ${queue.wrapped}, session: $wrapped."))
-    } yield new JmsMessageProducer(producer)
-
-  def createProducer(topic: JmsTopic): Resource[F, JmsMessageProducer[F]] =
-    for {
-      producer <- Resource.fromAutoCloseable(
-                   Logger[F].info(s"Opening MessageProducer for topic ${topic.wrapped}, session: $wrapped...") *>
-                     Sync[F].delay(wrapped.createProducer(topic.wrapped))
-                 )
-      _ <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for topic ${topic.wrapped}, session: $wrapped."))
+      _ <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for ${jmsDestination.wrapped}, session: $wrapped."))
     } yield new JmsMessageProducer(producer)
 
   val createTextMessage: F[JmsTextMessage[F]] =

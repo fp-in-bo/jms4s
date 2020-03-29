@@ -6,7 +6,7 @@ import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
 import jms4s.JmsConsumerPool.{ JmsResource, Received }
-import jms4s.config.QueueName
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.model.SessionType.Transacted
 import jms4s.model.{ SessionType, TransactionResult }
 
@@ -34,34 +34,40 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   def createQueueTransactedConsumerToProducers(
     connection: JmsConnection[F],
     inputQueueName: QueueName,
-    outputQueueNames: NonEmptyList[QueueName],
+    outputQueueNames: NonEmptyList[DestinationName],
     concurrencyLevel: Int
-  ): Resource[F, JmsQueueTransactedConsumer[F, NonEmptyMap[QueueName, JmsQueueProducer[F]]]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F, NonEmptyMap[DestinationName, JmsProducer[F]]]] =
     for {
       inputQueue <- Resource.liftF(
                      connection.createSession(SessionType.Transacted).use(_.createQueue(inputQueueName))
                    )
-      outputQueues <- Resource.liftF(
-                       outputQueueNames.traverse(
-                         outputQueueName =>
-                           connection
-                             .createSession(SessionType.Transacted)
-                             .use(_.createQueue(outputQueueName))
-                             .map(jmsQueue => (outputQueueName, jmsQueue))
-                       )
-                     )
+      outputDestinations <- Resource.liftF(
+                             outputQueueNames
+                               .traverse(
+                                 outputDestinationName =>
+                                   connection
+                                     .createSession(SessionType.Transacted)
+                                     .use[JmsDestination] { s =>
+                                       outputDestinationName match {
+                                         case q @ QueueName(_) => s.createQueue(q).widen[JmsDestination]
+                                         case t @ TopicName(_) => s.createTopic(t).widen[JmsDestination]
+                                       }
+                                     }
+                                     .map(jmsDestination => (outputDestinationName, jmsDestination))
+                               )
+                           )
       pool <- Resource.liftF(
-               Queue.bounded[F, JmsResource[F, NonEmptyMap[QueueName, JmsQueueProducer[F]]]](concurrencyLevel)
+               Queue.bounded[F, JmsResource[F, NonEmptyMap[DestinationName, JmsProducer[F]]]](concurrencyLevel)
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               session  <- connection.createSession(SessionType.Transacted)
               consumer <- session.createConsumer(inputQueue)
-              producers <- outputQueues.traverse {
-                            case (outputQueueName, outputQueue) =>
+              producers <- outputDestinations.traverse {
+                            case (outputDestinationName, outputDestination) =>
                               session
-                                .createProducer(outputQueue)
-                                .map(jmsProducer => (outputQueueName, new JmsQueueProducer(jmsProducer)))
+                                .createProducer(outputDestination)
+                                .map(jmsProducer => (outputDestinationName, new JmsProducer(jmsProducer)))
                           }.map(_.toNem)
               _ <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producers)))
             } yield ()
@@ -74,23 +80,30 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   def createQueueTransactedConsumerToProducer(
     connection: JmsConnection[F],
     inputQueueName: QueueName,
-    outputQueueName: QueueName,
+    outputDestinationName: DestinationName,
     concurrencyLevel: Int
-  ): Resource[F, JmsQueueTransactedConsumer[F, JmsQueueProducer[F]]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F, JmsProducer[F]]] =
     for {
       inputQueue <- Resource.liftF(
                      connection.createSession(SessionType.Transacted).use(_.createQueue(inputQueueName))
                    )
-      outputQueue <- Resource.liftF(
-                      connection.createSession(SessionType.Transacted).use(_.createQueue(outputQueueName))
-                    )
-      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F, JmsQueueProducer[F]]](concurrencyLevel))
+      outputDestination <- Resource.liftF(
+                            connection
+                              .createSession(SessionType.Transacted)
+                              .use[JmsDestination] { s =>
+                                outputDestinationName match {
+                                  case q @ QueueName(_) => s.createQueue(q).widen[JmsDestination]
+                                  case t @ TopicName(_) => s.createTopic(t).widen[JmsDestination]
+                                }
+                              }
+                          )
+      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F, JmsProducer[F]]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               session     <- connection.createSession(SessionType.Transacted)
               consumer    <- session.createConsumer(inputQueue)
-              jmsProducer <- session.createProducer(outputQueue)
-              producer    = new JmsQueueProducer(jmsProducer)
+              jmsProducer <- session.createProducer(outputDestination)
+              producer    = new JmsProducer(jmsProducer)
               _           <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producer)))
             } yield ()
           }
@@ -123,7 +136,7 @@ class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[jms4
       .drain
 }
 
-class JmsQueueProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
+class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
 
   def publish(message: JmsMessage[F]): F[Unit] =
     producer.send(message)
