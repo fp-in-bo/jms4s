@@ -11,21 +11,22 @@ import jms4s.config.{ Config, Endpoint }
 
 object ibmMQ {
 
-  def makeConnection[F[_]: Sync: Logger](jms: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
+  def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {
       connection <- Resource.fromAutoCloseable(
-                     Logger[F].info(s"Opening QueueConnection to MQ at ${hosts(jms.endpoints)}...") >>
+                     Logger[F].info(s"Opening QueueConnection to MQ at ${hosts(config.endpoints)}...") >>
                        Sync[F].delay {
                          val queueConnectionFactory: MQConnectionFactory = new MQConnectionFactory()
                          queueConnectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
-                         queueConnectionFactory.setQueueManager(jms.qm.value)
-                         queueConnectionFactory.setConnectionNameList(hosts(jms.endpoints))
-                         queueConnectionFactory.setChannel(jms.channel.value)
+                         queueConnectionFactory.setQueueManager(config.qm.value)
+                         queueConnectionFactory.setConnectionNameList(hosts(config.endpoints))
+                         queueConnectionFactory.setChannel(config.channel.value)
+                         queueConnectionFactory.setClientID(config.clientId)
 
-                         val connection = jms.username.map { (username) =>
+                         val connection = config.username.map { (username) =>
                            queueConnectionFactory.createConnection(
                              username.value,
-                             jms.password.map(_.value).getOrElse("")
+                             config.password.map(_.value).getOrElse("")
                            )
                          }.getOrElse(queueConnectionFactory.createConnection)
 

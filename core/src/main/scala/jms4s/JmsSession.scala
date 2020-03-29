@@ -19,14 +19,14 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
     Sync[F].delay(new JmsTopic(wrapped.createTopic(topicName.value)))
 
   def createConsumer(
-    queue: JmsQueue
+    jmsDestination: JmsDestination
   )(implicit CS: ContextShift[F], C: Concurrent[F]): Resource[F, JmsMessageConsumer[F]] =
     for {
       consumer <- Resource.fromAutoCloseable(
-                   Logger[F].info(s"Opening MessageConsumer for ${queue.wrapped}, session: $wrapped...") *>
-                     Sync[F].delay(wrapped.createConsumer(queue.wrapped))
+                   Logger[F].info(s"Opening MessageConsumer for ${jmsDestination.wrapped}, session: $wrapped...") *>
+                     Sync[F].delay(wrapped.createConsumer(jmsDestination.wrapped))
                  )
-      _ <- Resource.liftF(Logger[F].info(s"Opened MessageConsumer for ${queue.wrapped}, session: $wrapped."))
+      _ <- Resource.liftF(Logger[F].info(s"Opened MessageConsumer for ${jmsDestination.wrapped}, session: $wrapped."))
     } yield new JmsMessageConsumer[F](consumer)
 
   def createProducer(jmsDestination: JmsDestination): Resource[F, JmsMessageProducer[F]] =

@@ -9,7 +9,8 @@ case class Config(
   endpoints: NonEmptyList[Endpoint],
   channel: Channel,
   username: Option[Username] = None,
-  password: Option[Password] = None
+  password: Option[Password] = None,
+  clientId: String
 )
 
 case class Username(value: String) extends AnyVal

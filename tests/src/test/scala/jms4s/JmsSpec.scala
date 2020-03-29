@@ -26,63 +26,82 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
         Config(
           qm = QueueManager("QM1"),
           endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
-          channel = Channel("DEV.APP.SVRCONN"),
-          username = Some(Username("app")),
-          password = None
+          // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
+          // but maybe it's just me not understanding something properly.. as usual
+          //          channel = Channel("DEV.APP.SVRCONN"),
+          //          username = Some(Username("app")),
+          //          password = None,
+          channel = Channel("DEV.ADMIN.SVRCONN"),
+          username = Some(Username("admin")),
+          password = Some(Password("passw0rd")),
+          clientId = "jms-specs"
         ),
         blocker
       )
   )
 
-  val nMessages: Int              = 100
-  val poolSize: Int               = 10
+  val nMessages: Int              = 50
+  val poolSize: Int               = 4
   val timeout: FiniteDuration     = 2.seconds
-  val delay: FiniteDuration       = 20.millis
+  val delay: FiniteDuration       = 500.millis
+  val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
   val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
 
   "Basic jms ops" - {
     val res = for {
-      connection <- connectionRes
-      session    <- connection.createSession(SessionType.AutoAcknowledge)
-      queue      <- Resource.liftF(session.createQueue(inputQueueName))
-      consumer   <- session.createConsumer(queue)
-      producer   <- session.createProducer(queue)
-      msg        <- Resource.liftF(session.createTextMessage("body"))
-    } yield (consumer, producer, msg)
+      connection    <- connectionRes
+      session       <- connection.createSession(SessionType.AutoAcknowledge)
+      queue         <- Resource.liftF(session.createQueue(inputQueueName))
+      topic         <- Resource.liftF(session.createTopic(topicName))
+      queueConsumer <- session.createConsumer(queue)
+      topicConsumer <- session.createConsumer(topic)
+      queueProducer <- session.createProducer(queue)
+      topicProducer <- session.createProducer(topic)
+      msg           <- Resource.liftF(session.createTextMessage("body"))
+    } yield (queueConsumer, topicConsumer, queueProducer, topicProducer, msg)
 
-    "publish and then receive" in {
+    val topicRes = for {
+      connection    <- connectionRes
+      session       <- connection.createSession(SessionType.AutoAcknowledge)
+      topic         <- Resource.liftF(session.createTopic(topicName))
+      topicConsumer <- session.createConsumer(topic)
+      topicProducer <- session.createProducer(topic)
+      msg           <- Resource.liftF(session.createTextMessage("body"))
+    } yield (topicConsumer, topicProducer, msg)
+
+    "publish to a queue and then receive" in {
       res.use {
-        case (consumer, producer, msg) =>
+        case (queueConsumer, _, queueProducer, _, msg) =>
           for {
-            _        <- producer.send(msg)
-            received <- consumer.receiveJmsMessage
+            _        <- queueProducer.send(msg)
+            received <- queueConsumer.receiveJmsMessage
             text     <- received.asJmsTextMessage.flatMap(_.getText)
           } yield text.shouldBe("body")
       }
     }
-
     "publish and then receive with a delay" in {
       def receiveAfter(received: Ref[IO, Set[String]], duration: FiniteDuration) =
         for {
+          _        <- IO.sleep(duration / 2)
           tooEarly <- received.get
           _ <- if (tooEarly.nonEmpty)
                 IO.raiseError(new RuntimeException("Delay has not been respected!"))
               else
                 IO.unit
-          _      <- IO.sleep(duration)
+          _      <- IO.sleep(duration / 2)
           gotcha <- received.get
         } yield gotcha
 
       res.use {
-        case (consumer, producer, msg) =>
+        case (queueConsumer, _, queueProducer, _, msg) =>
           for {
-            _        <- producer.setDeliveryDelay(delay)
-            _        <- producer.send(msg)
+            _        <- queueProducer.setDeliveryDelay(delay)
+            _        <- queueProducer.send(msg)
             received <- Ref.of[IO, Set[String]](Set())
             consumerFiber <- (for {
-                              msg  <- consumer.receiveJmsMessage
+                              msg  <- queueConsumer.receiveJmsMessage
                               tm   <- msg.asJmsTextMessage
                               body <- tm.getText
                               _    <- received.update(_ + body)
@@ -91,10 +110,21 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
           } yield gotcha.shouldBe(Set("body"))
       }
     }
+    "publish to a topic and then receive" in {
+      topicRes.use {
+        case (topicConsumer, topicProducer, msg) =>
+          for {
+            _ <- (IO.delay(10.millis) >> topicProducer.send(msg)).start
+            rec <- topicConsumer.receiveJmsMessage
+                    .flatMap(_.asJmsTextMessage)
+                    .flatMap(_.getText)
+          } yield rec.shouldBe("body")
+      }
+    }
   }
 
   "High level api" - {
-    s"publish $nMessages messages and then consume them concurrently with local transactions" in {
+    s"publish $nMessages messages a nd then consume them concurrently with local transactions" in {
       val jmsClient = new JmsClient[IO]
 
       val res = for {
@@ -220,7 +250,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
     received: Ref[IO, Set[String]],
     nMessages: Int
   ): IO[Set[String]] =
-    (consumer.receiveJmsMessage.flatMap { msg => // receive
+    (consumer.receiveJmsMessage.flatMap { msg =>
       msg.asJmsTextMessage.flatMap(tm => tm.getText.flatMap(body => received.update(_ + body)))
     } *> received.get).iterateUntil(_.size == nMessages)
 }
