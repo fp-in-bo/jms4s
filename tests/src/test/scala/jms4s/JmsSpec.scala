@@ -75,9 +75,8 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
       res.use {
         case (queueConsumer, _, queueProducer, _, msg) =>
           for {
-            _        <- queueProducer.send(msg)
-            received <- queueConsumer.receiveJmsMessage
-            text     <- received.asJmsTextMessage.flatMap(_.getText)
+            _    <- queueProducer.send(msg)
+            text <- receiveBodyAsTextOrFail(queueConsumer)
           } yield text.shouldBe("body")
       }
     }
@@ -101,9 +100,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
             _        <- queueProducer.send(msg)
             received <- Ref.of[IO, Set[String]](Set())
             consumerFiber <- (for {
-                              msg  <- queueConsumer.receiveJmsMessage
-                              tm   <- msg.asJmsTextMessage
-                              body <- tm.getText
+                              body <- receiveBodyAsTextOrFail(queueConsumer)
                               _    <- received.update(_ + body)
                             } yield ()).start
             gotcha <- receiveAfter(received, delay).guarantee(consumerFiber.cancel)
@@ -114,10 +111,8 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
       topicRes.use {
         case (topicConsumer, topicProducer, msg) =>
           for {
-            _ <- (IO.delay(10.millis) >> topicProducer.send(msg)).start
-            rec <- topicConsumer.receiveJmsMessage
-                    .flatMap(_.asJmsTextMessage)
-                    .flatMap(_.getText)
+            _   <- (IO.delay(10.millis) >> topicProducer.send(msg)).start
+            rec <- receiveBodyAsTextOrFail(topicConsumer)
           } yield rec.shouldBe("body")
       }
     }
@@ -245,12 +240,17 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
     }
   }
 
+  private def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
+    consumer.receiveJmsMessage
+      .flatMap(_.asJmsTextMessage)
+      .flatMap(_.getText)
+
   private def receiveUntil(
     consumer: JmsMessageConsumer[IO],
     received: Ref[IO, Set[String]],
     nMessages: Int
   ): IO[Set[String]] =
-    (consumer.receiveJmsMessage.flatMap { msg =>
-      msg.asJmsTextMessage.flatMap(tm => tm.getText.flatMap(body => received.update(_ + body)))
-    } *> received.get).iterateUntil(_.size == nMessages)
+    receiveBodyAsTextOrFail(consumer)
+      .flatMap(body => received.update(_ + body) *> received.get)
+      .iterateUntil(_.size == nMessages)
 }
