@@ -31,3 +31,8 @@ libraryDependencies ++= Seq(
   "com.al333z" %% "jms4s" % "<version>"
 )
 ```
+
+## Local dev
+
+`docker-compose up -d`
+`sbt test`

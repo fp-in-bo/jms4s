@@ -2,7 +2,6 @@ package jms4s
 
 import cats.effect.{ Blocker, Resource, Sync }
 import cats.implicits._
-import jms4s.model.SessionType
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.Connection
 import jms4s.model.SessionType

@@ -50,17 +50,14 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
   val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
 
   "Basic jms ops" - {
-    val res = for {
+    val queueRes = for {
       connection    <- connectionRes
       session       <- connection.createSession(SessionType.AutoAcknowledge)
       queue         <- Resource.liftF(session.createQueue(inputQueueName))
-      topic         <- Resource.liftF(session.createTopic(topicName))
       queueConsumer <- session.createConsumer(queue)
-      topicConsumer <- session.createConsumer(topic)
       queueProducer <- session.createProducer(queue)
-      topicProducer <- session.createProducer(topic)
       msg           <- Resource.liftF(session.createTextMessage("body"))
-    } yield (queueConsumer, topicConsumer, queueProducer, topicProducer, msg)
+    } yield (queueConsumer, queueProducer, msg)
 
     val topicRes = for {
       connection    <- connectionRes
@@ -72,8 +69,8 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
     } yield (topicConsumer, topicProducer, msg)
 
     "publish to a queue and then receive" in {
-      res.use {
-        case (queueConsumer, _, queueProducer, _, msg) =>
+      queueRes.use {
+        case (queueConsumer, queueProducer, msg) =>
           for {
             _    <- queueProducer.send(msg)
             text <- receiveBodyAsTextOrFail(queueConsumer)
@@ -93,8 +90,8 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
           gotcha <- received.get
         } yield gotcha
 
-      res.use {
-        case (queueConsumer, _, queueProducer, _, msg) =>
+      queueRes.use {
+        case (queueConsumer, queueProducer, msg) =>
           for {
             _        <- queueProducer.setDeliveryDelay(delay)
             _        <- queueProducer.send(msg)
@@ -119,7 +116,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers {
   }
 
   "High level api" - {
-    s"publish $nMessages messages a nd then consume them concurrently with local transactions" in {
+    s"publish $nMessages messages and then consume them concurrently with local transactions" in {
       val jmsClient = new JmsClient[IO]
 
       val res = for {
