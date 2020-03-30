@@ -12,4 +12,5 @@ class JmsMessageProducer[F[_]: Sync] private[jms4s] (private[jms4s] val value: M
 
   def setDeliveryDelay(deliveryDelay: FiniteDuration): F[Unit] =
     Sync[F].delay(value.setDeliveryDelay(deliveryDelay.toMillis))
+
 }
