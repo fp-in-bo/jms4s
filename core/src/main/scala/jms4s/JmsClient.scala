@@ -1,6 +1,6 @@
 package jms4s
 
-import cats.data.{ NonEmptyList, NonEmptyMap }
+import cats.data._
 import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
@@ -8,6 +8,7 @@ import fs2.concurrent.Queue
 import jms4s.JmsConsumerPool.{ JmsResource, Received }
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.model.SessionType.Transacted
+import jms4s.model.TransactionResult.Destination
 import jms4s.model.{ SessionType, TransactionResult }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
@@ -18,15 +19,15 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     connection: JmsConnection[F],
     queueName: QueueName,
     concurrencyLevel: Int
-  ): Resource[F, JmsQueueTransactedConsumer[F, Unit]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F]] =
     for {
       queue <- Resource.liftF(connection.createSession(Transacted).use(_.createQueue(queueName)))
-      pool  <- Resource.liftF(Queue.bounded[F, JmsResource[F, Unit]](concurrencyLevel))
+      pool  <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               session  <- connection.createSession(SessionType.Transacted)
               consumer <- session.createConsumer(queue)
-              _        <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, ())))
+              _        <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, Map.empty)))
             } yield ()
           }
     } yield new JmsQueueTransactedConsumer(new JmsConsumerPool(pool), concurrencyLevel)
@@ -36,7 +37,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     inputQueueName: QueueName,
     outputQueueNames: NonEmptyList[DestinationName],
     concurrencyLevel: Int
-  ): Resource[F, JmsQueueTransactedConsumer[F, NonEmptyMap[DestinationName, JmsProducer[F]]]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F]] =
     for {
       inputQueue <- Resource.liftF(
                      connection.createSession(SessionType.Transacted).use(_.createQueue(inputQueueName))
@@ -57,7 +58,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                                )
                            )
       pool <- Resource.liftF(
-               Queue.bounded[F, JmsResource[F, NonEmptyMap[DestinationName, JmsProducer[F]]]](concurrencyLevel)
+               Queue.bounded[F, JmsResource[F]](concurrencyLevel)
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
@@ -67,9 +68,9 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                             case (outputDestinationName, outputDestination) =>
                               session
                                 .createProducer(outputDestination)
-                                .map(jmsProducer => (outputDestinationName, new JmsProducer(jmsProducer)))
+                                .map(jmsProducer => (outputDestinationName, new JmsProducerImpl(jmsProducer)))
                           }.map(_.toNem)
-              _ <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producers)))
+              _ <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producers.toSortedMap)))
             } yield ()
           }
     } yield new JmsQueueTransactedConsumer(new JmsConsumerPool(pool), concurrencyLevel)
@@ -82,7 +83,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     inputQueueName: QueueName,
     outputDestinationName: DestinationName,
     concurrencyLevel: Int
-  ): Resource[F, JmsQueueTransactedConsumer[F, JmsProducer[F]]] =
+  ): Resource[F, JmsQueueTransactedConsumer[F]] =
     for {
       inputQueue <- Resource.liftF(
                      connection.createSession(SessionType.Transacted).use(_.createQueue(inputQueueName))
@@ -97,25 +98,25 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                                 }
                               }
                           )
-      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F, JmsProducer[F]]](concurrencyLevel))
+      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               session     <- connection.createSession(SessionType.Transacted)
               consumer    <- session.createConsumer(inputQueue)
               jmsProducer <- session.createProducer(outputDestination)
-              producer    = new JmsProducer(jmsProducer)
+              producer    = Map(outputDestinationName -> new JmsProducerImpl(jmsProducer))
               _           <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producer)))
             } yield ()
           }
     } yield new JmsQueueTransactedConsumer(new JmsConsumerPool(pool), concurrencyLevel)
 }
 
-class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[jms4s] (
-  private val pool: JmsConsumerPool[F, R],
+class JmsQueueTransactedConsumer[F[_]: ContextShift] private[jms4s] (
+  private val pool: JmsConsumerPool[F],
   private val concurrencyLevel: Int
-) {
+)(implicit val F: Concurrent[F]) {
 
-  def handle(f: Received[F, R] => F[TransactionResult]): F[Unit] =
+  def handle(f: Received[F] => F[TransactionResult]): F[Unit] =
     Stream
       .emits(0 until concurrencyLevel)
       .as(
@@ -126,6 +127,20 @@ class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[jms4
             _ <- tResult match {
                   case TransactionResult.Commit   => pool.commit(received.resource)
                   case TransactionResult.Rollback => pool.rollback(received.resource)
+                  case TransactionResult.Send(destinations) =>
+                    destinations.traverse_ {
+                      case Destination(name, delay) =>
+                        delay.fold(
+                          received.resource
+                            .producers(name)
+                            .publish(received.message)
+                        )(
+                          d =>
+                            received.resource
+                              .producers(name)
+                              .publish(received.message, d)
+                        ) *> pool.commit(received.resource)
+                    }
                 }
           } yield ()
         )
@@ -136,7 +151,14 @@ class JmsQueueTransactedConsumer[F[_]: Concurrent: ContextShift, R] private[jms4
       .drain
 }
 
-class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
+sealed trait JmsProducer[F[_]] {
+  def publish(message: JmsMessage[F]): F[Unit]
+
+  def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit]
+}
+
+class JmsProducerImpl[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F])
+    extends JmsProducer[F] {
 
   def publish(message: JmsMessage[F]): F[Unit] =
     producer.send(message)
@@ -146,23 +168,27 @@ class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val p
 
 }
 
-class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[jms4s] (
-  private val pool: Queue[F, JmsResource[F, R]]
-) {
+class NoProducer[F[_]: Sync] extends JmsProducer[F] {
+  override def publish(message: JmsMessage[F]): F[Unit] = Sync[F].unit
 
-  val receive: F[Received[F, R]] =
+  override def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit] = Sync[F].unit
+}
+
+class JmsConsumerPool[F[_]: Concurrent: ContextShift] private[jms4s] (private val pool: Queue[F, JmsResource[F]]) {
+
+  val receive: F[Received[F]] =
     for {
       resource <- pool.dequeue1
       msg      <- resource.consumer.receiveJmsMessage
     } yield Received(msg, resource)
 
-  def commit(resource: JmsResource[F, R]): F[Unit] =
+  def commit(resource: JmsResource[F]): F[Unit] =
     for {
       _ <- resource.session.commit
       _ <- pool.enqueue1(resource)
     } yield ()
 
-  def rollback(resource: JmsResource[F, R]): F[Unit] =
+  def rollback(resource: JmsResource[F]): F[Unit] =
     for {
       _ <- resource.session.rollback
       _ <- pool.enqueue1(resource)
@@ -170,11 +196,13 @@ class JmsConsumerPool[F[_]: Concurrent: ContextShift, R] private[jms4s] (
 }
 
 object JmsConsumerPool {
-  case class JmsResource[F[_], R] private[jms4s] (
+
+  case class JmsResource[F[_]] private[jms4s] (
     session: JmsSession[F],
     consumer: JmsMessageConsumer[F],
-    producing: R
+    private[jms4s] val producers: Map[DestinationName, JmsProducer[F]]
   )
 
-  case class Received[F[_], R] private (message: JmsMessage[F], resource: JmsResource[F, R])
+  case class Received[F[_]] private (message: JmsMessage[F], resource: JmsResource[F])
+
 }
