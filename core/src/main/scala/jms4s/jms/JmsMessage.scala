@@ -1,11 +1,11 @@
-package jms4s
+package jms4s.jms
 
 import cats.Show
 import cats.effect.Sync
 import cats.implicits._
-import JmsMessage.UnsupportedMessage
-import MessageOps._
 import javax.jms.{ Destination, Message, TextMessage }
+import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
+import jms4s.jms.MessageOps._
 
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Try }
@@ -22,14 +22,9 @@ class JmsMessage[F[_]: Sync] private[jms4s] (private[jms4s] val wrapped: Message
     case _                        => Sync[F].raiseError(UnsupportedMessage(wrapped))
   }
 
-  def setJMSCorrelationId(correlationId: String): F[Unit] =
-    Sync[F].delay(wrapped.setJMSCorrelationID(correlationId))
-
-  def setJMSReplyTo(destination: JmsDestination): F[Unit] =
-    Sync[F].delay(wrapped.setJMSReplyTo(destination.wrapped))
-
-  def setJMSType(`type`: String): F[Unit] =
-    Sync[F].delay(wrapped.setJMSType(`type`))
+  def setJMSCorrelationId(correlationId: String): F[Unit] = Sync[F].delay(wrapped.setJMSCorrelationID(correlationId))
+  def setJMSReplyTo(destination: JmsDestination): F[Unit] = Sync[F].delay(wrapped.setJMSReplyTo(destination.wrapped))
+  def setJMSType(`type`: String): F[Unit]                 = Sync[F].delay(wrapped.setJMSType(`type`))
 
   def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): F[Unit] =
     Sync[F].delay(wrapped.setJMSCorrelationIDAsBytes(correlationId))
@@ -45,22 +40,32 @@ class JmsMessage[F[_]: Sync] private[jms4s] (private[jms4s] val wrapped: Message
   val getJMSType: F[String]                      = Sync[F].delay(wrapped.getJMSType)
   val getJMSExpiration: F[Long]                  = Sync[F].delay(wrapped.getJMSExpiration)
   val getJMSPriority: F[Int]                     = Sync[F].delay(wrapped.getJMSPriority)
+  val getJMSDeliveryTime: F[Long]                = Sync[F].delay(wrapped.getJMSDeliveryTime)
 
-  def getBooleanProperty(name: String): F[Boolean] = Sync[F].delay(wrapped.getBooleanProperty(name))
-  def getByteProperty(name: String): F[Byte]       = Sync[F].delay(wrapped.getByteProperty(name))
-  def getDoubleProperty(name: String): F[Double]   = Sync[F].delay(wrapped.getDoubleProperty(name))
-  def getFloatProperty(name: String): F[Float]     = Sync[F].delay(wrapped.getFloatProperty(name))
-  def getIntProperty(name: String): F[Int]         = Sync[F].delay(wrapped.getIntProperty(name))
-  def getLongProperty(name: String): F[Long]       = Sync[F].delay(wrapped.getLongProperty(name))
-  def getShortProperty(name: String): F[Short]     = Sync[F].delay(wrapped.getShortProperty(name))
-  def getStringProperty(name: String): F[String]   = Sync[F].delay(wrapped.getStringProperty(name))
+  def getBooleanProperty(name: String): F[Boolean] =
+    Sync[F].delay(wrapped.getBooleanProperty(name))
 
-}
+  def getByteProperty(name: String): F[Byte] =
+    Sync[F].delay(wrapped.getByteProperty(name))
 
-object JmsMessage {
-  case class UnsupportedMessage(message: Message)
-      extends Exception("Unsupported Message: " + message.show)
-      with NoStackTrace
+  def getDoubleProperty(name: String): F[Double] =
+    Sync[F].delay(wrapped.getDoubleProperty(name))
+
+  def getFloatProperty(name: String): F[Float] =
+    Sync[F].delay(wrapped.getFloatProperty(name))
+
+  def getIntProperty(name: String): F[Int] =
+    Sync[F].delay(wrapped.getIntProperty(name))
+
+  def getLongProperty(name: String): F[Long] =
+    Sync[F].delay(wrapped.getLongProperty(name))
+
+  def getShortProperty(name: String): F[Short] =
+    Sync[F].delay(wrapped.getShortProperty(name))
+
+  def getStringProperty(name: String): F[String] =
+    Sync[F].delay(wrapped.getStringProperty(name))
+
 }
 
 object MessageOps {
@@ -97,5 +102,21 @@ object MessageOps {
          |${getStringContent.getOrElse(s"Unsupported message type: $message")}
         """.stripMargin
     }.getOrElse("")
+  }
+}
+
+object JmsMessage {
+
+  case class UnsupportedMessage(message: Message)
+      extends Exception("Unsupported Message: " + message.show)
+      with NoStackTrace
+
+  class JmsTextMessage[F[_]: Sync] private[jms4s] (override private[jms4s] val wrapped: TextMessage)
+      extends JmsMessage[F](wrapped) {
+
+    def setText(text: String): F[Unit] =
+      Sync[F].delay(wrapped.setText(text))
+
+    val getText: F[String] = Sync[F].delay(wrapped.getText)
   }
 }

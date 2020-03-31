@@ -1,4 +1,4 @@
-package jms4s
+package jms4s.jms
 
 import cats.effect.{ Blocker, Resource, Sync }
 import cats.implicits._

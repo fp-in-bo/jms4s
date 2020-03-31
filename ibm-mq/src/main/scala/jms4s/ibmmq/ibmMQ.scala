@@ -6,8 +6,8 @@ import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger
-import jms4s.JmsConnection
 import jms4s.config.{ Config, Endpoint }
+import jms4s.jms.JmsConnection
 
 object ibmMQ {
 

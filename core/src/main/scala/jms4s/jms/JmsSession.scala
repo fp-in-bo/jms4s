@@ -1,10 +1,12 @@
-package jms4s
+package jms4s.jms
 
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.Session
 import jms4s.config.{ QueueName, TopicName }
+import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
+import jms4s.jms.JmsMessage.JmsTextMessage
 
 class JmsSession[F[_]: Sync: Logger] private[jms4s] (
   private[jms4s] val wrapped: Session,
@@ -36,6 +38,15 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
                  )
       _ <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for ${jmsDestination.wrapped}, session: $wrapped."))
     } yield new JmsMessageProducer(producer)
+
+  val createUnidentifiedProducer: Resource[F, JmsUnidentifiedMessageProducer[F]] =
+    for {
+      producer <- Resource.fromAutoCloseable(
+                   Logger[F].info(s"Opening unidentified MessageProducer, session: $wrapped...") *>
+                     Sync[F].delay(wrapped.createProducer(null))
+                 )
+      _ <- Resource.liftF(Logger[F].info(s"Opened unidentified MessageProducer, session: $wrapped."))
+    } yield new JmsUnidentifiedMessageProducer(producer)
 
   val createTextMessage: F[JmsTextMessage[F]] =
     Sync[F].delay(new JmsTextMessage(wrapped.createTextMessage()))

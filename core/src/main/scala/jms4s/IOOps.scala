@@ -1,11 +1,11 @@
 package jms4s
 
+import cats.effect.implicits._
 import cats.effect.{ Concurrent, ContextShift, Sync }
+import cats.implicits._
+import javax.jms.JMSException
 
 import scala.util.control.NonFatal
-import cats.implicits._
-import cats.effect.implicits._
-import javax.jms.JMSException
 
 object IOOps {
 

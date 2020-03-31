@@ -7,6 +7,7 @@ import fs2.Stream
 import fs2.concurrent.Queue
 import jms4s.JmsConsumerPool.{ JmsResource, Received }
 import jms4s.config.{ DestinationName, QueueName, TopicName }
+import jms4s.jms._
 import jms4s.model.SessionType.Transacted
 import jms4s.model.TransactionResult.Destination
 import jms4s.model.{ SessionType, TransactionResult }
@@ -68,7 +69,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
                             case (outputDestinationName, outputDestination) =>
                               session
                                 .createProducer(outputDestination)
-                                .map(jmsProducer => (outputDestinationName, new JmsProducerImpl(jmsProducer)))
+                                .map(jmsProducer => (outputDestinationName, new JmsProducer(jmsProducer)))
                           }.map(_.toNem)
               _ <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producers.toSortedMap)))
             } yield ()
@@ -104,7 +105,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
               session     <- connection.createSession(SessionType.Transacted)
               consumer    <- session.createConsumer(inputQueue)
               jmsProducer <- session.createProducer(outputDestination)
-              producer    = Map(outputDestinationName -> new JmsProducerImpl(jmsProducer))
+              producer    = Map(outputDestinationName -> new JmsProducer(jmsProducer))
               _           <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producer)))
             } yield ()
           }
@@ -151,27 +152,25 @@ class JmsQueueTransactedConsumer[F[_]: ContextShift] private[jms4s] (
       .drain
 }
 
-sealed trait JmsProducer[F[_]] {
-  def publish(message: JmsMessage[F]): F[Unit]
-
-  def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit]
-}
-
-class JmsProducerImpl[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F])
-    extends JmsProducer[F] {
+class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
 
   def publish(message: JmsMessage[F]): F[Unit] =
     producer.send(message)
 
   def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
     producer.setDeliveryDelay(delay) >> producer.send(message) >> producer.setDeliveryDelay(0.millis)
-
 }
 
-class NoProducer[F[_]: Sync] extends JmsProducer[F] {
-  override def publish(message: JmsMessage[F]): F[Unit] = Sync[F].unit
+// TODO evaluate if we really want this! May be useful when dealing with multiple destination?
+class JmsUnidentifiedProducer[F[_]: Sync: ContextShift] private[jms4s] (
+  private[jms4s] val producer: JmsUnidentifiedMessageProducer[F]
+) {
 
-  override def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit] = Sync[F].unit
+  def publish(destination: JmsDestination, message: JmsMessage[F]): F[Unit] =
+    producer.send(destination, message)
+
+  def publish(destination: JmsDestination, message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
+    producer.setDeliveryDelay(delay) >> producer.send(destination, message) >> producer.setDeliveryDelay(0.millis)
 }
 
 class JmsConsumerPool[F[_]: Concurrent: ContextShift] private[jms4s] (private val pool: Queue[F, JmsResource[F]]) {
