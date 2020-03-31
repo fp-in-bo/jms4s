@@ -38,6 +38,7 @@ trait Jms4sBaseSpec {
   )
 
   val nMessages: Int              = 50
+  val bodies: IndexedSeq[String]  = (0 until nMessages).map(i => s"$i")
   val poolSize: Int               = 4
   val timeout: FiniteDuration     = 2.seconds
   val delay: FiniteDuration       = 500.millis

@@ -8,9 +8,8 @@ import cats.implicits._
 import jms4s.model.TransactionResult.Send
 import jms4s.model.{ SessionType, TransactionResult }
 import org.scalatest.freespec.AsyncFreeSpec
-import org.scalatest.matchers.should.Matchers
 
-class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBaseSpec {
+class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   "High level api" - {
     s"publish $nMessages messages and then consume them concurrently with local transactions" in {
       val jmsClient = new JmsClient[IO]
@@ -20,7 +19,6 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jm
         session            <- connection.createSession(SessionType.AutoAcknowledge)
         queue              <- Resource.liftF(session.createQueue(inputQueueName))
         producer           <- session.createProducer(queue)
-        bodies             = (0 until nMessages).map(i => s"$i")
         messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
         transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, inputQueueName, poolSize)
       } yield (transactedConsumer, producer, bodies.toSet, messages)
@@ -41,7 +39,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jm
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
                                  .guarantee(consumerFiber.cancel)
-          } yield receivedMessages.shouldBe(bodies)
+          } yield assert(receivedMessages == bodies)
       }
     }
 
@@ -77,7 +75,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jm
             received <- Ref.of[IO, Set[String]](Set())
             receivedMessages <- (receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get)
                                  .guarantee(consumerToProducerFiber.cancel)
-          } yield receivedMessages.shouldBe(bodies)
+          } yield assert(receivedMessages == bodies)
       }
     }
 
@@ -124,7 +122,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jm
                                  receiveUntil(outputConsumer2, received2, nMessages / 2)
                                ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
                                  .guarantee(consumerToProducerFiber.cancel)
-          } yield receivedMessages.shouldBe(bodies)
+          } yield assert(receivedMessages == bodies)
       }
     }
   }
