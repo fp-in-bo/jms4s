@@ -1,12 +1,12 @@
 package jms4s.jms
 
-import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ IO, Resource }
 import cats.implicits._
 import jms4s.Jms4sBaseSpec
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.dsl.ResultOfGreaterThanOrEqualToComparison
 import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
@@ -41,30 +41,23 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
       }
     }
     "publish and then receive with a delay" in {
-      def receiveAfter(received: Ref[IO, Set[String]], duration: FiniteDuration) =
-        for {
-          _        <- IO.sleep(duration / 2)
-          tooEarly <- received.get
-          _ <- if (tooEarly.nonEmpty)
-                IO.raiseError(new RuntimeException("Delay has not been respected!"))
-              else
-                IO.unit
-          _      <- IO.sleep(duration / 2)
-          gotcha <- received.get
-        } yield gotcha
-
       queueRes.use {
-        case (queueConsumer, queueProducer, msg) =>
+        case (consumer, producer, msg) =>
           for {
-            _        <- queueProducer.setDeliveryDelay(delay)
-            _        <- queueProducer.send(msg)
-            received <- Ref.of[IO, Set[String]](Set())
-            consumerFiber <- (for {
-                              body <- receiveBodyAsTextOrFail(queueConsumer)
-                              _    <- received.update(_ + body)
-                            } yield ()).start
-            gotcha <- receiveAfter(received, delay).guarantee(consumerFiber.cancel)
-          } yield gotcha.shouldBe(Set("body"))
+            _                 <- producer.setDeliveryDelay(delay)
+            producerTimestamp <- IO(System.currentTimeMillis())
+            _                 <- producer.send(msg)
+            msg               <- consumer.receiveJmsMessage
+            tm                <- msg.asJmsTextMessage
+            body              <- tm.getText
+            jmsDeliveryTime   <- tm.getJMSDeliveryTime
+            producerDelay     <- IO(jmsDeliveryTime - producerTimestamp)
+          } yield (body, producerDelay)
+            .shouldBe(
+              new ResultOfGreaterThanOrEqualToComparison(
+                (body, delay.toMillis)
+              )
+            )
       }
     }
     "publish to a topic and then receive" in {
