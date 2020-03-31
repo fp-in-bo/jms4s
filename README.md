@@ -34,5 +34,5 @@ libraryDependencies ++= Seq(
 
 ## Local dev
 
-`docker-compose up -d`
-`sbt test`
+- `docker-compose up -d`
+- `sbt test`
