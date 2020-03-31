@@ -12,6 +12,8 @@ import org.scalatest.matchers.should.Matchers
 import scala.concurrent.duration._
 
 class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBaseSpec {
+
+  val expectedBody = "body"
   "Basic jms ops" - {
     val queueRes = for {
       connection    <- connectionRes
@@ -19,7 +21,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
       queue         <- Resource.liftF(session.createQueue(inputQueueName))
       queueConsumer <- session.createConsumer(queue)
       queueProducer <- session.createProducer(queue)
-      msg           <- Resource.liftF(session.createTextMessage("body"))
+      msg           <- Resource.liftF(session.createTextMessage(expectedBody))
     } yield (queueConsumer, queueProducer, msg)
 
     val topicRes = for {
@@ -28,7 +30,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
       topic         <- Resource.liftF(session.createTopic(topicName))
       topicConsumer <- session.createConsumer(topic)
       topicProducer <- session.createProducer(topic)
-      msg           <- Resource.liftF(session.createTextMessage("body"))
+      msg           <- Resource.liftF(session.createTextMessage(expectedBody))
     } yield (topicConsumer, topicProducer, msg)
 
     "publish to a queue and then receive" in {
@@ -37,7 +39,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
           for {
             _    <- queueProducer.send(msg)
             text <- receiveBodyAsTextOrFail(queueConsumer)
-          } yield text.shouldBe("body")
+          } yield text.shouldBe(expectedBody)
       }
     }
     "publish and then receive with a delay" in {
@@ -55,7 +57,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
           } yield (body, producerDelay)
             .shouldBe(
               new ResultOfGreaterThanOrEqualToComparison(
-                (body, delay.toMillis)
+                (expectedBody, delay.toMillis)
               )
             )
       }
@@ -66,7 +68,7 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Matchers with Jms4sBas
           for {
             _   <- (IO.delay(10.millis) >> topicProducer.send(msg)).start
             rec <- receiveBodyAsTextOrFail(topicConsumer)
-          } yield rec.shouldBe("body")
+          } yield rec.shouldBe(expectedBody)
       }
     }
   }
