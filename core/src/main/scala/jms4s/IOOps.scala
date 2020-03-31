@@ -1,13 +1,35 @@
 package jms4s
 
 import cats.effect.implicits._
-import cats.effect.{ Concurrent, ContextShift, Sync }
-import cats.implicits._
+import cats.effect.{ Concurrent, ContextShift, Sync, Timer }
+import io.chrisdavenport.log4cats.Logger
 import javax.jms.JMSException
-
+import scala.concurrent.duration._
+import scala.concurrent.duration.FiniteDuration
 import scala.util.control.NonFatal
+import cats.implicits._
 
 object IOOps {
+
+  implicit class RichIO[F[_]: Logger: Sync: Timer, A](val inner: F[A]) {
+
+    // from Fs2Rabbit ResilientStream
+    def retryOnNonFatal(
+      initialDelay: FiniteDuration = 5.seconds
+    ): F[A] = loop(inner, initialDelay, 1)
+
+    private def loop(
+      program: F[A],
+      retry: FiniteDuration,
+      count: Int
+    ): F[A] =
+      program.handleErrorWith {
+        case NonFatal(err) =>
+          Logger[F].error(err.getMessage) *>
+            Logger[F].info(s"Restarting in ${retry.toSeconds * count}...") >>
+            loop(Timer[F].sleep(retry) >> program, retry, count + 1)
+      }
+  }
 
   // adapted from https://gist.github.com/djspiewak/d587d309930e65549430898a16f82749
   def interruptable[A, F[_]: Concurrent: ContextShift](force: Boolean)(thunk: => A): F[A] = {
