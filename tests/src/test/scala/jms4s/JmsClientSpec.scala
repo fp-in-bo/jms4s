@@ -5,8 +5,8 @@ import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ IO, Resource }
 import cats.implicits._
-import jms4s.model.TransactionResult.Send
-import jms4s.model.{ SessionType, TransactionResult }
+import jms4s.JmsTransactedConsumer.TransactionResult._
+import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
 class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
@@ -34,7 +34,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                 tm   <- message.asJmsTextMessage
                                 body <- tm.getText
                                 _    <- received.update(_ + body)
-                              } yield TransactionResult.Commit
+                              } yield commit
                             }.start
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
@@ -69,7 +69,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
             consumerToProducerFiber <- transactedConsumer.handle { _ =>
-                                        IO(TransactionResult.Send.to(outputQueueName1))
+                                        IO(sendTo(outputQueueName1))
                                       }.start
             _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
             received <- Ref.of[IO, Set[String]](Set())
@@ -111,8 +111,8 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                           tm   <- message.asJmsTextMessage
                                           text <- tm.getText
                                         } yield
-                                          if (text.toInt % 2 == 0) Send.to(outputQueueName1)
-                                          else Send.to(outputQueueName2)
+                                          if (text.toInt % 2 == 0) sendTo(outputQueueName1)
+                                          else sendTo(outputQueueName2)
                                       }.start
             _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
             received1 <- Ref.of[IO, Set[String]](Set())
