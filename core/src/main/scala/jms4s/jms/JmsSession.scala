@@ -53,6 +53,9 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
       _ <- Resource.liftF(Logger[F].info(s"Opened unidentified MessageProducer, session: $wrapped."))
     } yield new JmsUnidentifiedMessageProducer(producer)
 
+  val createMessage: F[JmsMessage[F]] =
+    Sync[F].delay(new JmsMessage(wrapped.createMessage()))
+
   val createTextMessage: F[JmsTextMessage[F]] =
     Sync[F].delay(new JmsTextMessage(wrapped.createTextMessage()))
 

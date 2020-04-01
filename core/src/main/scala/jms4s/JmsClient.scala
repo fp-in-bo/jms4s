@@ -1,12 +1,12 @@
 package jms4s
 
 import cats.data._
-import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{Concurrent, ContextShift, Resource, Sync}
 import cats.implicits._
 import jms4s.config.DestinationName
 import jms4s.jms._
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.duration.{FiniteDuration, _}
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
@@ -56,6 +56,28 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
     JmsAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
 
+  def createAutoAcknowledgerConsumer(
+    connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
+    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, concurrencyLevel)
+
+  def createAutoAcknowledgerToProducers(
+    connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    outputDestinationNames: NonEmptyList[DestinationName],
+    concurrencyLevel: Int
+  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
+    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationNames, concurrencyLevel)
+
+  def createAutoAcknowledgerToProducer(
+    connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    outputDestinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
+    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
 }
 
 class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {

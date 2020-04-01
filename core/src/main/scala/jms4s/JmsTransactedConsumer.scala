@@ -1,22 +1,22 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.effect.{Concurrent, ContextShift, Resource, Sync}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
-import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{ JmsResource, Received }
-import jms4s.JmsTransactedConsumer.TransactionResult
-import jms4s.JmsTransactedConsumer.TransactionResult.Destination
-import jms4s.config.{ DestinationName, QueueName }
-import jms4s.jms.{ JmsConnection, JmsMessage, JmsMessageConsumer, JmsSession }
+import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{JmsResource, Received}
+import jms4s.JmsTransactedConsumer.{TransactionAction, TransactionActionSyntax}
+import jms4s.config.DestinationName
+import jms4s.jms.JmsMessage.JmsTextMessage
+import jms4s.jms.{JmsConnection, JmsMessage, JmsMessageConsumer, JmsSession}
 import jms4s.model.SessionType
 import jms4s.model.SessionType.Transacted
 
 import scala.concurrent.duration.FiniteDuration
 
-trait JmsTransactedConsumer[F[_]] {
-  def handle(f: JmsMessage[F] => F[TransactionResult]): F[Unit]
+trait JmsTransactedConsumer[F[_]] extends TransactionActionSyntax[F]{
+  def handle(f: JmsMessage[F] => F[TransactionAction]): F[Unit]
 }
 
 object JmsTransactedConsumer {
@@ -33,7 +33,9 @@ object JmsTransactedConsumer {
             for {
               session  <- connection.createSession(SessionType.Transacted)
               consumer <- session.createConsumer(input)
-              _        <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, Map.empty)))
+              _ <- Resource.liftF(
+                    pool.enqueue1(JmsResource(session, consumer, Map.empty, new MessageFactory[F](session)))
+                  )
             } yield ()
           }
     } yield build(new JmsTransactedConsumerPool(pool), concurrencyLevel)
@@ -73,7 +75,9 @@ object JmsTransactedConsumer {
                                 .createProducer(outputDestination)
                                 .map(jmsProducer => (outputDestinationName, new JmsProducer(jmsProducer)))
                           }.map(_.toNem)
-              _ <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producers.toSortedMap)))
+              _ <- Resource.liftF(
+                    pool.enqueue1(JmsResource(session, consumer, producers.toSortedMap, new MessageFactory[F](session)))
+                  )
             } yield ()
           }
     } yield build(new JmsTransactedConsumerPool(pool), concurrencyLevel)
@@ -102,7 +106,9 @@ object JmsTransactedConsumer {
               consumer    <- session.createConsumer(inputDestination)
               jmsProducer <- session.createProducer(outputDestination)
               producer    = Map(outputDestinationName -> new JmsProducer(jmsProducer))
-              _           <- Resource.liftF(pool.enqueue1(JmsResource(session, consumer, producer)))
+              _ <- Resource.liftF(
+                    pool.enqueue1(JmsResource(session, consumer, producer, new MessageFactory[F](session)))
+                  )
             } yield ()
           }
     } yield build(new JmsTransactedConsumerPool(pool), concurrencyLevel)
@@ -111,39 +117,47 @@ object JmsTransactedConsumer {
     pool: JmsTransactedConsumerPool[F],
     concurrencyLevel: Int
   ): JmsTransactedConsumer[F] =
-    (f: JmsMessage[F] => F[TransactionResult]) =>
-      Stream
-        .emits(0 until concurrencyLevel)
-        .as(
-          Stream.eval(
-            for {
-              received <- pool.receive
-              tResult  <- f(received.message)
-              _ <- tResult match {
-                    case TransactionResult.Commit   => pool.commit(received.resource)
-                    case TransactionResult.Rollback => pool.rollback(received.resource)
-                    case TransactionResult.Send(destinations) =>
-                      destinations.traverse_ {
-                        case Destination(name, delay) =>
-                          delay.fold(
-                            received.resource
-                              .producers(name)
-                              .publish(received.message)
-                          )(
-                            d =>
-                              received.resource
-                                .producers(name)
-                                .publish(received.message, d)
-                          ) *> pool.commit(received.resource)
+    new JmsTransactedConsumer[F] {
+      override def handle(f: JmsMessage[F] => F[TransactionAction]): F[Unit] =
+        Stream
+          .emits(0 until concurrencyLevel)
+          .as(
+            Stream.eval(
+              fo = for {
+                received                   <- pool.receive
+                tResult <- f(received.message)
+                _ <- tResult match {
+                      case Commit   => pool.commit(received.resource)
+                      case Rollback => pool.rollback(received.resource)
+                      case Send(createMessages) => {
+                        createMessages(received.resource.messageFactory)
+                          .flatMap(
+                            dest =>
+                              dest.traverse_ {
+                                case (message, (name, delay)) =>
+                                  delay.fold(
+                                    received.resource
+                                      .producers(name)
+                                      .publish(message)
+                                  )(
+                                    d =>
+                                      received.resource
+                                        .producers(name)
+                                        .publish(message, d)
+                                  ) *> pool.commit(received.resource)
+                              }
+                          )
                       }
-                  }
-            } yield ()
+                  //    case _ => pool.commit(received.resource)
+                    }
+              } yield ()
+            )
           )
-        )
-        .parJoin(concurrencyLevel)
-        .repeat
-        .compile
-        .drain
+          .parJoin(concurrencyLevel)
+          .repeat
+          .compile
+          .drain
+    }
 
   private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent: ContextShift](pool: Queue[F, JmsResource[F]]) {
 
@@ -171,35 +185,41 @@ object JmsTransactedConsumer {
     private[jms4s] case class JmsResource[F[_]] private[jms4s] (
       session: JmsSession[F],
       consumer: JmsMessageConsumer[F],
-      producers: Map[DestinationName, JmsProducer[F]]
+      producers: Map[DestinationName, JmsProducer[F]],
+      messageFactory: MessageFactory[F]
     )
 
     private[jms4s] case class Received[F[_]] private (message: JmsMessage[F], resource: JmsResource[F])
 
   }
 
-  sealed abstract class TransactionResult extends Product with Serializable
+  sealed abstract class TransactionAction extends Product with Serializable {
+    def fold[F[_]](ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send => F[Unit]):F[Unit]
+  }
 
-  object TransactionResult {
+  object TransactionActionSyntax {
 
-    private[jms4s] case object Commit extends TransactionResult
+    private[jms4s] case object Commit extends TransactionAction
 
-    private[jms4s] case object Rollback extends TransactionResult
+    private[jms4s] case object Rollback extends TransactionAction
 
-    private[jms4s] case class Send(destinations: NonEmptyList[Destination]) extends TransactionResult
+    private[jms4s] case class Send(
+      createMessages: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+    ) extends TransactionAction
 
-    private[jms4s] case class Destination(queueName: DestinationName, delay: Option[FiniteDuration])
+    val commit: TransactionAction   = Commit
+    val rollback: TransactionAction = Rollback
 
-    val commit: TransactionResult   = Commit
-    val rollback: TransactionResult = Rollback
+    def sendToAndCommit(
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+    ): Send =  {
 
-    def sendTo(queueNames: QueueName*): Send =
-      Send(NonEmptyList.fromListUnsafe(queueNames.toList.map(name => Destination(name, None))))
 
-    def sendWithDelayTo(queueNames: (QueueName, FiniteDuration)*): Send = Send(
-      NonEmptyList.fromListUnsafe(
-        queueNames.toList.map(x => Destination(x._1, Some(x._2)))
-      )
-    )
+      Send(messageFactory)
+    }
+  }
+
+  class MessageFactory[F[_]: Sync](session: JmsSession[F]) {
+    def makeTextMessage(value: String): F[JmsTextMessage[F]] = session.createTextMessage(value)
   }
 }
