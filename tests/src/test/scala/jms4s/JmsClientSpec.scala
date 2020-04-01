@@ -20,7 +20,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         queue              <- Resource.liftF(session.createQueue(inputQueueName))
         producer           <- session.createProducer(queue)
         messages           <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createQueueTransactedConsumer(connection, inputQueueName, poolSize)
+        transactedConsumer <- jmsClient.createTransactedConsumer(connection, inputQueueName, poolSize)
       } yield (transactedConsumer, producer, bodies.toSet, messages)
 
       res.use {
@@ -29,9 +29,9 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
             _        <- messages.traverse_(msg => producer.send(msg))
             _        <- logger.info(s"Pushed ${messages.size} messages.")
             received <- Ref.of[IO, Set[String]](Set())
-            consumerFiber <- transactedConsumer.handle { rec =>
+            consumerFiber <- transactedConsumer.handle { message =>
                               for {
-                                tm   <- rec.message.asJmsTextMessage
+                                tm   <- message.asJmsTextMessage
                                 body <- tm.getText
                                 _    <- received.update(_ + body)
                               } yield TransactionResult.Commit
@@ -55,7 +55,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         outputConsumer <- session.createConsumer(outputQueue)
         bodies         = (0 until nMessages).map(i => s"$i")
         messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createQueueTransactedConsumerToProducer(
+        transactedConsumer <- jmsClient.createTransactedConsumerToProducer(
                                connection,
                                inputQueueName,
                                outputQueueName1,
@@ -93,7 +93,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         outputConsumer2 <- session.createConsumer(outputQueue2)
         bodies          = (0 until nMessages).map(i => s"$i")
         messages        <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        transactedConsumer <- jmsClient.createQueueTransactedConsumerToProducers(
+        transactedConsumer <- jmsClient.createTransactedConsumerToProducers(
                                connection,
                                inputQueueName,
                                NonEmptyList.of(outputQueueName1, outputQueueName2),
@@ -106,9 +106,9 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           for {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- transactedConsumer.handle { r =>
+            consumerToProducerFiber <- transactedConsumer.handle { message =>
                                         for {
-                                          tm   <- r.message.asJmsTextMessage
+                                          tm   <- message.asJmsTextMessage
                                           text <- tm.getText
                                         } yield
                                           if (text.toInt % 2 == 0) Send.to(outputQueueName1)

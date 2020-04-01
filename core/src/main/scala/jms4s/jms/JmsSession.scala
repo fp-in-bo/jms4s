@@ -4,7 +4,7 @@ import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.Session
-import jms4s.config.{ QueueName, TopicName }
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
 import jms4s.jms.JmsMessage.JmsTextMessage
 
@@ -18,6 +18,11 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
 
   def createTopic(topicName: TopicName): F[JmsTopic] =
     Sync[F].delay(new JmsTopic(wrapped.createTopic(topicName.value)))
+
+  def createDestination(destination: DestinationName): F[JmsDestination] = destination match {
+    case q: QueueName => createQueue(q).widen[JmsDestination]
+    case t: TopicName => createTopic(t).widen[JmsDestination]
+  }
 
   def createConsumer(
     jmsDestination: JmsDestination
