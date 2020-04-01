@@ -40,6 +40,22 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
     JmsAcknowledgerConsumer.make(connection, inputDestinationName, concurrencyLevel)
 
+  def createAcknowledgerToProducers(
+    connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    outputDestinationNames: NonEmptyList[DestinationName],
+    concurrencyLevel: Int
+  ): Resource[F, JmsAcknowledgerConsumer[F]] =
+    JmsAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationNames, concurrencyLevel)
+
+  def createAcknowledgerToProducer(
+    connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    outputDestinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsAcknowledgerConsumer[F]] =
+    JmsAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
+
 }
 
 class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {

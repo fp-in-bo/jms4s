@@ -15,9 +15,9 @@ import scala.concurrent.duration.{ FiniteDuration, _ }
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
-  val blocker: Resource[IO, Blocker] = Blocker.apply
+  val blockerRes: Resource[IO, Blocker] = Blocker.apply
 
-  val connectionRes: Resource[IO, JmsConnection[IO]] = blocker.flatMap(
+  val connectionRes: Resource[IO, JmsConnection[IO]] = blockerRes.flatMap(
     blocker =>
       makeConnection[IO](
         Config(
