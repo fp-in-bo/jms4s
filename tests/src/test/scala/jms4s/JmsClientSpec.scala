@@ -3,11 +3,11 @@ package jms4s
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource }
+import cats.effect.{IO, Resource}
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.Action
-import jms4s.JmsTransactedConsumer.{ MessageFactory, TransactionActionSyntax }
+import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.jms.JmsMessage
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
@@ -37,7 +37,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                 tm   <- message.asJmsTextMessage
                                 body <- tm.getText
                                 _    <- received.update(_ + body)
-                              } yield consumer.commit
+                              } yield TransactionAction.commit
                             }.start
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
@@ -47,7 +47,6 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
 
     s"publish $nMessages messages, consume them concurrently with local transactions and then republishing to an other queue" in {
-
       val res = for {
         connection     <- connectionRes
         session        <- connection.createSession(SessionType.AutoAcknowledge)
@@ -70,15 +69,11 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           for {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { _: JmsMessage[IO] =>
-                                        def createMessage(
-                                          mFactory: MessageFactory[IO]
-                                        ) =
-                                          mFactory
-                                            .makeTextMessage("a brand new message")
-                                            .map(message => NonEmptyList.one(message, (outputQueueName1, None)))
-
-                                        IO.delay(consumer.sendToAndCommit(createMessage))
+            consumerToProducerFiber <- consumer.handle { received: JmsMessage[IO] =>
+                                        received.asJmsTextMessage.map(
+                                          message =>
+                                            TransactionAction.send[IO](messageFactory(message, outputQueueName1))
+                                        )
                                       }.start
             _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
             received <- Ref.of[IO, Set[String]](Set())
@@ -115,13 +110,13 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
             consumerToProducerFiber <- consumer.handle { message =>
-              import consumer._
                                         for {
                                           tm   <- message.asJmsTextMessage
                                           text <- tm.getText
                                         } yield
-                                          if (text.toInt % 2 == 0) sendToAndCommit(outputQueueName1)
-                                          else sendToAndCommit(outputQueueName2)
+                                          if (text.toInt % 2 == 0)
+                                            TransactionAction.send[IO](messageFactory(tm, outputQueueName1))
+                                          else TransactionAction.send[IO](messageFactory(tm, outputQueueName2))
                                       }.start
             _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
             received1 <- Ref.of[IO, Set[String]](Set())

@@ -1,22 +1,23 @@
 package jms4s
 
+import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{Concurrent, ContextShift, Resource, Sync}
+import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
-import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{JmsResource, Received}
-import jms4s.JmsTransactedConsumer.{TransactionAction, TransactionActionSyntax}
+import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{ JmsResource, Received }
+import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{JmsConnection, JmsMessage, JmsMessageConsumer, JmsSession}
+import jms4s.jms.{ JmsConnection, JmsMessage, JmsMessageConsumer, JmsSession }
 import jms4s.model.SessionType
 import jms4s.model.SessionType.Transacted
 
 import scala.concurrent.duration.FiniteDuration
 
-trait JmsTransactedConsumer[F[_]] extends TransactionActionSyntax[F]{
-  def handle(f: JmsMessage[F] => F[TransactionAction]): F[Unit]
+trait JmsTransactedConsumer[F[_]] {
+  def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit]
 }
 
 object JmsTransactedConsumer {
@@ -118,22 +119,23 @@ object JmsTransactedConsumer {
     concurrencyLevel: Int
   ): JmsTransactedConsumer[F] =
     new JmsTransactedConsumer[F] {
-      override def handle(f: JmsMessage[F] => F[TransactionAction]): F[Unit] =
+      override def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit] =
         Stream
           .emits(0 until concurrencyLevel)
           .as(
             Stream.eval(
               fo = for {
-                received                   <- pool.receive
-                tResult <- f(received.message)
-                _ <- tResult match {
-                      case Commit   => pool.commit(received.resource)
-                      case Rollback => pool.rollback(received.resource)
-                      case Send(createMessages) => {
+                received <- pool.receive
+                tResult  <- f(received.message)
+                _ <- tResult.fold(
+                      pool.commit(received.resource),
+                      pool.rollback(received.resource),
+                      send => {
+                        val createMessages = send.createMessages
                         createMessages(received.resource.messageFactory)
                           .flatMap(
-                            dest =>
-                              dest.traverse_ {
+                            toSend =>
+                              toSend.messagesAndDestinations.traverse_ {
                                 case (message, (name, delay)) =>
                                   delay.fold(
                                     received.resource
@@ -148,8 +150,7 @@ object JmsTransactedConsumer {
                               }
                           )
                       }
-                  //    case _ => pool.commit(received.resource)
-                    }
+                    )
               } yield ()
             )
           )
@@ -193,30 +194,56 @@ object JmsTransactedConsumer {
 
   }
 
-  sealed abstract class TransactionAction extends Product with Serializable {
-    def fold[F[_]](ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send => F[Unit]):F[Unit]
+  sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
+    def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: TransactionAction.Send[F] => F[Unit]): F[Unit]
   }
 
-  object TransactionActionSyntax {
+  object TransactionAction {
 
-    private[jms4s] case object Commit extends TransactionAction
-
-    private[jms4s] case object Rollback extends TransactionAction
-
-    private[jms4s] case class Send(
-      createMessages: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
-    ) extends TransactionAction
-
-    val commit: TransactionAction   = Commit
-    val rollback: TransactionAction = Rollback
-
-    def sendToAndCommit(
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
-    ): Send =  {
-
-
-      Send(messageFactory)
+    private[jms4s] case class Commit[F[_]]() extends TransactionAction[F] {
+      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifCommit
     }
+
+    private[jms4s] case class Rollback[F[_]]() extends TransactionAction[F] {
+      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifRollback
+    }
+
+    case class Send[F[_]](
+      createMessages: MessageFactory[F] => F[ToSend[F]]
+    ) extends TransactionAction[F] {
+      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
+        ifSend(this)
+    }
+
+    private[jms4s] case class ToSend[F[_]](
+      messagesAndDestinations: NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+    )
+
+    def commit[F[_]]: TransactionAction[F] = Commit[F]()
+
+    def rollback[F[_]]: TransactionAction[F] = Rollback[F]()
+
+    def sendN[F[_]: Functor](
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+    ): Send[F] =
+      Send[F](
+        mf => messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
+      )
+
+    def sendNWithDelay[F[_]: Functor](
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+    ): Send[F] =
+      Send[F](mf => messageFactory(mf).map(ToSend[F]))
+
+    def sendWithDelay[F[_]: Functor](
+      messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+    ): Send[F] =
+      Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
+
+    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): Send[F] =
+      Send[F](
+        mf => messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
+      )
   }
 
   class MessageFactory[F[_]: Sync](session: JmsSession[F]) {
