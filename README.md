@@ -10,8 +10,8 @@ Support at the very least the following features:
 
 - Consuming, returning a never-ending cancellable program that concurrently consumes from a queue (an `IO`)
   - [x] createQueueTransactedConsumer
-  - [ ] createQueueAckConsumer
-  - [ ] createQueueAutoAckConsumer
+  - [x] createQueueAckConsumer
+  - [x] createQueueAutoAckConsumer
 
 - Publishing, returning a component which can publish messages
   - [ ] createQueuePublisher
