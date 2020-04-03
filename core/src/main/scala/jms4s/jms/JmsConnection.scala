@@ -8,7 +8,7 @@ import jms4s.model.SessionType
 
 class JmsConnection[F[_]: Sync: Logger] private[jms4s] (
   private[jms4s] val wrapped: Connection,
-  private val blocker: Blocker
+  private[jms4s] val blocker: Blocker
 ) {
 
   def createSession(sessionType: SessionType): Resource[F, JmsSession[F]] =
