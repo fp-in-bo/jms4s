@@ -185,8 +185,11 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           for {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { _ =>
-                                        IO(AckAction.sendToAndAck(outputQueueName1))
+            consumerToProducerFiber <- consumer.handle { received =>
+                                        received.asJmsTextMessage.map(
+                                          textMessage =>
+                                            AckAction.send[IO](messageFactory(textMessage, outputQueueName1))
+                                        )
                                       }.start
             _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
             received <- Ref.of[IO, Set[String]](Set())
@@ -227,8 +230,9 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                           tm   <- message.asJmsTextMessage
                                           text <- tm.getText
                                         } yield
-                                          if (text.toInt % 2 == 0) AckAction.sendToAndAck(outputQueueName1)
-                                          else AckAction.sendToAndAck(outputQueueName2)
+                                          if (text.toInt % 2 == 0)
+                                            AckAction.send[IO](messageFactory(tm, outputQueueName1))
+                                          else AckAction.send[IO](messageFactory(tm, outputQueueName2))
                                       }.start
             _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
             received1 <- Ref.of[IO, Set[String]](Set())

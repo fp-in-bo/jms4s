@@ -2,15 +2,14 @@ package jms4s
 
 import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, ContextShift, Resource }
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
 import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{ JmsResource, Received }
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
-import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsConnection, JmsMessage, JmsMessageConsumer, JmsSession }
+import jms4s.jms._
 import jms4s.model.SessionType
 import jms4s.model.SessionType.Transacted
 
@@ -244,9 +243,5 @@ object JmsTransactedConsumer {
       Send[F](
         mf => messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
       )
-  }
-
-  class MessageFactory[F[_]: Sync](session: JmsSession[F]) {
-    def makeTextMessage(value: String): F[JmsTextMessage[F]] = session.createTextMessage(value)
   }
 }

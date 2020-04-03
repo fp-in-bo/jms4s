@@ -2,17 +2,16 @@ package jms4s
 
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
-import cats.effect.{Blocker, IO, Resource}
+import cats.effect.{ Blocker, IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import jms4s.JmsTransactedConsumer.MessageFactory
 import jms4s.config._
 import jms4s.ibmmq.ibmMQ.makeConnection
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{JmsConnection, JmsMessageConsumer}
+import jms4s.jms.{ JmsConnection, JmsMessageConsumer, MessageFactory }
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]

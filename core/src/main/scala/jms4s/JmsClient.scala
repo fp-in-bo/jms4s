@@ -1,12 +1,12 @@
 package jms4s
 
 import cats.data._
-import cats.effect.{Concurrent, ContextShift, Resource, Sync}
+import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import jms4s.config.DestinationName
 import jms4s.jms._
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
