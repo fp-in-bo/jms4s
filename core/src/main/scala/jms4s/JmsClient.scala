@@ -3,10 +3,12 @@ package jms4s
 import cats.data._
 import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
-import jms4s.config.DestinationName
+import fs2.concurrent.Queue
+import jms4s.JmsProducer.JmsProducerPool
+import jms4s.JmsUnidentifiedProducer.JmsUnidentifiedProducerPool
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms._
-
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import jms4s.model.SessionType
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
@@ -78,24 +80,44 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
-}
 
-class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
+  def createProducer(
+    connection: JmsConnection[F],
+    destinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsPooledProducer[F]] =
+    for {
 
-  def publish(message: JmsMessage[F]): F[Unit] =
-    producer.send(message)
+      pool <- Resource.liftF(
+               Queue.bounded[F, JmsProducerPool.JmsResource[F]](concurrencyLevel)
+             )
+      _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
+            for {
+              session <- connection.createSession(SessionType.AutoAcknowledge)
+              destination <- Resource.liftF(destinationName match {
+                              case q: QueueName => session.createQueue(q).widen[JmsDestination]
+                              case t: TopicName => session.createTopic(t).widen[JmsDestination]
+                            })
+              producer <- session.createProducer(destination)
+              _        <- Resource.liftF(pool.enqueue1(JmsProducerPool.JmsResource(session, producer)))
+            } yield ()
+          }
+    } yield new JmsPooledProducer(new JmsProducerPool(pool))
 
-  def publish(message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
-    producer.setDeliveryDelay(delay) >> producer.send(message) >> producer.setDeliveryDelay(0.millis)
-}
-
-class JmsUnidentifiedProducer[F[_]: Sync: ContextShift] private[jms4s] (
-  private[jms4s] val producer: JmsUnidentifiedMessageProducer[F]
-) {
-
-  def publish(destination: JmsDestination, message: JmsMessage[F]): F[Unit] =
-    producer.send(destination, message)
-
-  def publish(destination: JmsDestination, message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
-    producer.setDeliveryDelay(delay) >> producer.send(destination, message) >> producer.setDeliveryDelay(0.millis)
+  def createProducer(
+    connection: JmsConnection[F],
+    concurrencyLevel: Int
+  ): Resource[F, JmsUnidentifiedPooledProducer[F]] =
+    for {
+      pool <- Resource.liftF(
+               Queue.bounded[F, JmsUnidentifiedProducerPool.JmsResource[F]](concurrencyLevel)
+             )
+      _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
+            for {
+              session  <- connection.createSession(SessionType.AutoAcknowledge)
+              producer <- session.createUnidentifiedProducer
+              _        <- Resource.liftF(pool.enqueue1(JmsUnidentifiedProducerPool.JmsResource(session, producer)))
+            } yield ()
+          }
+    } yield new JmsUnidentifiedPooledProducer(new JmsUnidentifiedProducerPool(pool))
 }

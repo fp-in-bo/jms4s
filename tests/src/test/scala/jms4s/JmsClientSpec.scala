@@ -248,4 +248,130 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       }
     }
   }
+
+  s"publish $nMessages messages in a Queue with pooled producer and consume them" in {
+    val jmsClient = new JmsClient[IO]
+
+    val res = for {
+      connection     <- connectionRes
+      session        <- connection.createSession(SessionType.AutoAcknowledge)
+      outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
+      outputConsumer <- session.createConsumer(outputQueue)
+      bodies         = (0 until nMessages).map(i => s"$i")
+      messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+      producer <- jmsClient.createProducer(
+                   connection,
+                   outputQueueName1,
+                   poolSize
+                 )
+    } yield (producer, outputConsumer, bodies.toSet, messages)
+
+    res.use {
+      case (producer, outputConsumer, bodies, messages) =>
+        for {
+          _                <- messages.parTraverse_(msg => producer.publish(msg))
+          _                <- logger.info(s"Pushed ${messages.size} messages.")
+          _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
+          received         <- Ref.of[IO, Set[String]](Set())
+          receivedMessages <- receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get
+        } yield assert(receivedMessages == bodies)
+    }
+  }
+
+  s"publish $nMessages messages in a Topic with pooled producer and consume them" in {
+    val jmsClient = new JmsClient[IO]
+
+    val res = for {
+      connection     <- connectionRes
+      session        <- connection.createSession(SessionType.AutoAcknowledge)
+      outputTopic    <- Resource.liftF(session.createTopic(topicName))
+      outputConsumer <- session.createConsumer(outputTopic)
+      bodies         = (0 until nMessages).map(i => s"$i")
+      messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+      producer <- jmsClient.createProducer(
+                   connection,
+                   topicName,
+                   poolSize
+                 )
+    } yield (producer, outputConsumer, bodies.toSet, messages)
+
+    res.use {
+      case (producer, outputConsumer, bodies, messages) =>
+        for {
+          _                <- messages.parTraverse_(msg => producer.publish(msg))
+          _                <- logger.info(s"Pushed ${messages.size} messages.")
+          _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
+          received         <- Ref.of[IO, Set[String]](Set())
+          receivedMessages <- receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get
+        } yield assert(receivedMessages == bodies)
+    }
+  }
+
+  s"publish $nMessages messages in two Queues with unidentified pooled producer and consume them" in {
+    val jmsClient = new JmsClient[IO]
+
+    val res = for {
+      connection      <- connectionRes
+      session         <- connection.createSession(SessionType.AutoAcknowledge)
+      outputQueue     <- Resource.liftF(session.createQueue(outputQueueName1))
+      outputQueue2    <- Resource.liftF(session.createQueue(outputQueueName2))
+      outputConsumer  <- session.createConsumer(outputQueue)
+      outputConsumer2 <- session.createConsumer(outputQueue2)
+      bodies          = (0 until nMessages).map(i => s"$i")
+      messages        <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+      producer <- jmsClient.createProducer(
+                   connection,
+                   poolSize
+                 )
+    } yield (producer, outputConsumer, outputConsumer2, bodies.toSet, messages)
+
+    res.use {
+      case (producer, outputConsumer, outputConsumer2, bodies, messages) =>
+        for {
+          _ <- messages.parTraverse_(msg => {
+                producer.publish((msg, outputQueueName1)) *> producer.publish((msg, outputQueueName2))
+              })
+          _                   <- logger.info(s"Pushed ${messages.size} messages.")
+          _                   <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
+          firstBatch          <- Ref.of[IO, Set[String]](Set())
+          firstBatchMessages  <- receiveUntil(outputConsumer, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
+          secondBatch         <- Ref.of[IO, Set[String]](Set())
+          secondBatchMessages <- receiveUntil(outputConsumer2, secondBatch, nMessages).timeout(timeout) >> secondBatch.get
+        } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
+    }
+  }
+
+  s"publish $nMessages messages in two Topics with unidentified pooled producer and consume them" in {
+    val jmsClient = new JmsClient[IO]
+
+    val res = for {
+      connection      <- connectionRes
+      session         <- connection.createSession(SessionType.AutoAcknowledge)
+      topic           <- Resource.liftF(session.createTopic(topicName))
+      outputConsumer  <- session.createConsumer(topic)
+      topic2          <- Resource.liftF(session.createTopic(topicName2))
+      outputConsumer2 <- session.createConsumer(topic2)
+      bodies          = (0 until nMessages).map(i => s"$i")
+      messages        <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
+      producer <- jmsClient.createProducer(
+                   connection,
+                   poolSize
+                 )
+    } yield (producer, outputConsumer, outputConsumer2, bodies.toSet, messages)
+
+    res.use {
+      case (producer, outputConsumer, outputConsumer2, bodies, messages) =>
+        for {
+          _ <- messages.parTraverse_(msg => {
+                producer.publish((msg, topicName)) *> producer.publish((msg, topicName2))
+              })
+          _                   <- logger.info(s"Pushed ${messages.size} messages.")
+          _                   <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
+          firstBatch          <- Ref.of[IO, Set[String]](Set())
+          firstBatchMessages  <- receiveUntil(outputConsumer, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
+          secondBatch         <- Ref.of[IO, Set[String]](Set())
+          secondBatchMessages <- receiveUntil(outputConsumer2, secondBatch, nMessages).timeout(timeout) >> secondBatch.get
+        } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
+    }
+  }
 }
