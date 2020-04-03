@@ -3,10 +3,10 @@ package jms4s
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{IO, Resource}
+import cats.effect.{ IO, Resource }
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
-import jms4s.JmsAutoAcknowledgerConsumer.Action
+import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.jms.JmsMessage
 import jms4s.model.SessionType
@@ -268,7 +268,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                 tm   <- message.asJmsTextMessage
                                 body <- tm.getText
                                 _    <- received.update(_ + body)
-                              } yield Action.noOp
+                              } yield AutoAckAction.noOp
                             }.start
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
@@ -301,8 +301,12 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           for {
             _ <- messages.traverse_(msg => inputProducer.send(msg))
             _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { _ =>
-                                        IO(Action.send(outputQueueName1))
+            consumerToProducerFiber <- consumer.handle { received =>
+                                        received.asJmsTextMessage.map(
+                                          teztMessage =>
+                                            AutoAckAction.send[IO](messageFactory(teztMessage, outputQueueName1))
+                                        )
+
                                       }.start
             _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
             received <- Ref.of[IO, Set[String]](Set())
@@ -343,8 +347,9 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                           tm   <- message.asJmsTextMessage
                                           text <- tm.getText
                                         } yield
-                                          if (text.toInt % 2 == 0) Action.send(outputQueueName1)
-                                          else Action.send(outputQueueName2)
+                                          if (text.toInt % 2 == 0)
+                                            AutoAckAction.send[IO](messageFactory(tm, outputQueueName1))
+                                          else AutoAckAction.send[IO](messageFactory(tm, outputQueueName2))
                                       }.start
             _         <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queues...")
             received1 <- Ref.of[IO, Set[String]](Set())
