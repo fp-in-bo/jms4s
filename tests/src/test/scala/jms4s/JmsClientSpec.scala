@@ -8,7 +8,6 @@ import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
-import jms4s.jms.JmsMessage
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -42,43 +41,6 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
                                  .guarantee(consumerFiber.cancel)
-          } yield assert(receivedMessages == bodies)
-      }
-    }
-
-    s"publish $nMessages messages, consume them concurrently with local transactions and then republishing to an other queue" in {
-      val res = for {
-        connection     <- connectionRes
-        session        <- connection.createSession(SessionType.AutoAcknowledge)
-        inputQueue     <- Resource.liftF(session.createQueue(inputQueueName))
-        outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
-        inputProducer  <- session.createProducer(inputQueue)
-        outputConsumer <- session.createConsumer(outputQueue)
-        bodies         = (0 until nMessages).map(i => s"$i")
-        messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        consumer <- jmsClient.createTransactedConsumerToProducer(
-                     connection,
-                     inputQueueName,
-                     outputQueueName1,
-                     poolSize
-                   )
-      } yield (consumer, inputProducer, outputConsumer, bodies.toSet, messages)
-
-      res.use {
-        case (consumer, inputProducer, outputConsumer, bodies, messages) =>
-          for {
-            _ <- messages.traverse_(msg => inputProducer.send(msg))
-            _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { received: JmsMessage[IO] =>
-                                        received.asJmsTextMessage.map(
-                                          message =>
-                                            TransactionAction.send[IO](messageFactory(message, outputQueueName1))
-                                        )
-                                      }.start
-            _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-            received <- Ref.of[IO, Set[String]](Set())
-            receivedMessages <- (receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get)
-                                 .guarantee(consumerToProducerFiber.cancel)
           } yield assert(receivedMessages == bodies)
       }
     }
@@ -161,44 +123,6 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       }
     }
 
-    s"publish $nMessages messages, consume them concurrently and then republishing to an other queue, with acknowledge" in {
-
-      val res = for {
-        connection     <- connectionRes
-        session        <- connection.createSession(SessionType.AutoAcknowledge)
-        inputQueue     <- Resource.liftF(session.createQueue(inputQueueName))
-        outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
-        inputProducer  <- session.createProducer(inputQueue)
-        outputConsumer <- session.createConsumer(outputQueue)
-        bodies         = (0 until nMessages).map(i => s"$i")
-        messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        consumer <- jmsClient.createAcknowledgerToProducer(
-                     connection,
-                     inputQueueName,
-                     outputQueueName1,
-                     poolSize
-                   )
-      } yield (consumer, inputProducer, outputConsumer, bodies.toSet, messages)
-
-      res.use {
-        case (consumer, inputProducer, outputConsumer, bodies, messages) =>
-          for {
-            _ <- messages.traverse_(msg => inputProducer.send(msg))
-            _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { received =>
-                                        received.asJmsTextMessage.map(
-                                          textMessage =>
-                                            AckAction.send[IO](messageFactory(textMessage, outputQueueName1))
-                                        )
-                                      }.start
-            _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-            received <- Ref.of[IO, Set[String]](Set())
-            receivedMessages <- (receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get)
-                                 .guarantee(consumerToProducerFiber.cancel)
-          } yield assert(receivedMessages == bodies)
-      }
-    }
-
     s"publish $nMessages messages, consume them concurrently and then republishing to other queues, with acknowledge" in {
 
       val res = for {
@@ -273,45 +197,6 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
             _ <- logger.info(s"Consumer started.\nCollecting messages from the queue...")
             receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
                                  .guarantee(consumerFiber.cancel)
-          } yield assert(receivedMessages == bodies)
-      }
-    }
-
-    s"publish $nMessages messages, consume them concurrently and then republishing to an other queue, with auto-acknowledge" in {
-
-      val res = for {
-        connection     <- connectionRes
-        session        <- connection.createSession(SessionType.AutoAcknowledge)
-        inputQueue     <- Resource.liftF(session.createQueue(inputQueueName))
-        outputQueue    <- Resource.liftF(session.createQueue(outputQueueName1))
-        inputProducer  <- session.createProducer(inputQueue)
-        outputConsumer <- session.createConsumer(outputQueue)
-        bodies         = (0 until nMessages).map(i => s"$i")
-        messages       <- Resource.liftF(bodies.toList.traverse(i => session.createTextMessage(i)))
-        consumer <- jmsClient.createAutoAcknowledgerToProducer(
-                     connection,
-                     inputQueueName,
-                     outputQueueName1,
-                     poolSize
-                   )
-      } yield (consumer, inputProducer, outputConsumer, bodies.toSet, messages)
-
-      res.use {
-        case (consumer, inputProducer, outputConsumer, bodies, messages) =>
-          for {
-            _ <- messages.traverse_(msg => inputProducer.send(msg))
-            _ <- logger.info(s"Pushed ${messages.size} messages.")
-            consumerToProducerFiber <- consumer.handle { received =>
-                                        received.asJmsTextMessage.map(
-                                          teztMessage =>
-                                            AutoAckAction.send[IO](messageFactory(teztMessage, outputQueueName1))
-                                        )
-
-                                      }.start
-            _        <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-            received <- Ref.of[IO, Set[String]](Set())
-            receivedMessages <- (receiveUntil(outputConsumer, received, nMessages).timeout(timeout) >> received.get)
-                                 .guarantee(consumerToProducerFiber.cancel)
           } yield assert(receivedMessages == bodies)
       }
     }

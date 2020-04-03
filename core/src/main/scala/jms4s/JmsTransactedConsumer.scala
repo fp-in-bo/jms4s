@@ -117,47 +117,45 @@ object JmsTransactedConsumer {
     pool: JmsTransactedConsumerPool[F],
     concurrencyLevel: Int
   ): JmsTransactedConsumer[F] =
-    new JmsTransactedConsumer[F] {
-      override def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit] =
-        Stream
-          .emits(0 until concurrencyLevel)
-          .as(
-            Stream.eval(
-              fo = for {
-                received <- pool.receive
-                tResult  <- f(received.message)
-                _ <- tResult.fold(
-                      pool.commit(received.resource),
-                      pool.rollback(received.resource),
-                      send => {
-                        val createMessages = send.createMessages
-                        createMessages(received.resource.messageFactory)
-                          .flatMap(
-                            toSend =>
-                              toSend.messagesAndDestinations.traverse_ {
-                                case (message, (name, delay)) =>
-                                  delay.fold(
+    (f: JmsMessage[F] => F[TransactionAction[F]]) =>
+      Stream
+        .emits(0 until concurrencyLevel)
+        .as(
+          Stream.eval(
+            fo = for {
+              received <- pool.receive
+              tResult  <- f(received.message)
+              _ <- tResult.fold(
+                    pool.commit(received.resource),
+                    pool.rollback(received.resource),
+                    send => {
+                      val createMessages = send.createMessages
+                      createMessages(received.resource.messageFactory)
+                        .flatMap(
+                          toSend =>
+                            toSend.messagesAndDestinations.traverse_ {
+                              case (message, (name, delay)) =>
+                                delay.fold(
+                                  received.resource
+                                    .producers(name)
+                                    .publish(message)
+                                )(
+                                  d =>
                                     received.resource
                                       .producers(name)
-                                      .publish(message)
-                                  )(
-                                    d =>
-                                      received.resource
-                                        .producers(name)
-                                        .publish(message, d)
-                                  ) *> pool.commit(received.resource)
-                              }
-                          )
-                      }
-                    )
-              } yield ()
-            )
+                                      .publish(message, d)
+                                ) *> pool.commit(received.resource)
+                            }
+                        )
+                    }
+                  )
+            } yield ()
           )
-          .parJoin(concurrencyLevel)
-          .repeat
-          .compile
-          .drain
-    }
+        )
+        .parJoin(concurrencyLevel)
+        .repeat
+        .compile
+        .drain
 
   private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent: ContextShift](pool: Queue[F, JmsResource[F]]) {
 

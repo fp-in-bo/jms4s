@@ -62,12 +62,14 @@ trait Jms4sBaseSpec {
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)
 
-  def messageFactory(message: JmsTextMessage[IO], destinationName: DestinationName) = {
-    (mFactory: MessageFactory[IO]) =>
-      message.getText.flatMap { text =>
-        mFactory
-          .makeTextMessage(text)
-          .map(message => (message, destinationName))
-      }
+  def messageFactory(
+    message: JmsTextMessage[IO],
+    destinationName: DestinationName
+  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { mFactory: MessageFactory[IO] =>
+    message.getText.flatMap { text =>
+      mFactory
+        .makeTextMessage(text)
+        .map(message => (message, destinationName))
+    }
   }
 }
