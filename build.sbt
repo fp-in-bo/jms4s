@@ -57,7 +57,7 @@ lazy val site = project
       micrositeName := "jms4s",
       micrositeDescription := "fs2/cats-effects wrapper for jms",
       micrositeAuthor := "Alessandro Zoffoli",
-      micrositeGithubOwner := "al333z",
+      micrositeGithubOwner := "fp-in-bo",
       micrositeGithubRepo := "jms4s",
       micrositeBaseUrl := "/jms4s",
       micrositeFooterText := None,
@@ -119,11 +119,13 @@ lazy val commonSettings = Seq(
 // General Settings
 inThisBuild(
   List(
-    organization := "com.al333z",
+    organization := "dev.fpinbo",
     developers := List(
-      Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z"))
+      Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
+      Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
+      Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti"))
     ),
-    homepage := Some(url("https://github.com/al333z/jms4s")),
+    homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
     pomIncludeRepository := { _ =>
       false
@@ -133,7 +135,7 @@ inThisBuild(
       "-sourcepath",
       (baseDirectory in LocalRootProject).value.getAbsolutePath,
       "-doc-source-url",
-      "https://github.com/al333z/jms4s/blob/v" + version.value + "€{FILE_PATH}.scala"
+      "https://github.com/fp-in-bo/jms4s/blob/v" + version.value + "€{FILE_PATH}.scala"
     )
   )
 )
