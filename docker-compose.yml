@@ -1,4 +1,4 @@
-ibmMQ:
+ibmmq:
   restart: always
   image: ibmcom/mq # https://github.com/ibm-messaging/mq-docker
   ports:
@@ -26,3 +26,10 @@ ibmMQ:
 
 #  Topic
 #  DEV.BASE.TOPIC - With a topic string of dev/
+
+activemq:
+  restart: always
+  image: rmohr/activemq
+  ports:
+    - "8161:8161"
+    - "61616:61616"

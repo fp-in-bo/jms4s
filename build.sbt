@@ -35,6 +35,7 @@ lazy val tests = project
   .settings(commonSettings: _*)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
+  .settings(libraryDependencies += "org.apache.activemq" % "activemq-all" % "5.15.12")
   .settings(parallelExecution in Test := false)
   .dependsOn(core, ibmMQ)
 

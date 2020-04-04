@@ -13,10 +13,10 @@ class JmsConnection[F[_]: Sync: Logger] private[jms4s] (
 
   def createSession(sessionType: SessionType): Resource[F, JmsSession[F]] =
     for {
-      session <- Resource.fromAutoCloseable(
+      session <- Resource.make(
                   Logger[F].info(s"Opening QueueSession for $wrapped.") *>
                     Sync[F].delay(wrapped.createSession(sessionType.rawTransacted, sessionType.rawAcknowledgeMode))
-                )
+                )(x => Sync[F].delay(x.close()))
       _ <- Resource.liftF(Logger[F].info(s"Opened QueueSession $session for $wrapped."))
     } yield new JmsSession(session, blocker)
 }

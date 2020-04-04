@@ -7,7 +7,7 @@ import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import jms4s.config._
-import jms4s.ibmmq.ibmMQ.makeConnection
+//import jms4s.ibmmq.ibmMQ.makeConnection
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsConnection, JmsMessageConsumer, MessageFactory }
 
@@ -20,7 +20,7 @@ trait Jms4sBaseSpec {
 
   val connectionRes: Resource[IO, JmsConnection[IO]] = blockerRes.flatMap(
     blocker =>
-      makeConnection[IO](
+      activeMQ.makeConnection[IO](
         Config(
           qm = QueueManager("QM1"),
           endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
@@ -31,7 +31,8 @@ trait Jms4sBaseSpec {
           //          password = None,
           channel = Channel("DEV.ADMIN.SVRCONN"),
           username = Some(Username("admin")),
-          password = Some(Password("passw0rd")),
+//          password = Some(Password("passw0rd")),
+          password = Some(Password("admin")),
           clientId = "jms-specs"
         ),
         blocker
@@ -41,7 +42,7 @@ trait Jms4sBaseSpec {
   val nMessages: Int              = 50
   val bodies: IndexedSeq[String]  = (0 until nMessages).map(i => s"$i")
   val poolSize: Int               = 4
-  val timeout: FiniteDuration     = 2.seconds
+  val timeout: FiniteDuration     = 10.seconds
   val delay: FiniteDuration       = 500.millis
   val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
   val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")
