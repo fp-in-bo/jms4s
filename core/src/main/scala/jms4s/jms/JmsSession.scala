@@ -29,28 +29,66 @@ class JmsSession[F[_]: Sync: Logger] private[jms4s] (
   )(implicit CS: ContextShift[F], C: Concurrent[F]): Resource[F, JmsMessageConsumer[F]] =
     for {
       consumer <- Resource.make(
-                   Logger[F].info(s"Opening MessageConsumer for ${jmsDestination.wrapped}, session: $wrapped...") *>
+                   Logger[F].info(
+                     s"Opening MessageConsumer for Destination ${jmsDestination.wrapped}, Session: $wrapped..."
+                   ) *>
                      Sync[F].delay(wrapped.createConsumer(jmsDestination.wrapped))
-                 )(c => Sync[F].delay(c.close()))
-      _ <- Resource.liftF(Logger[F].info(s"Opened MessageConsumer for ${jmsDestination.wrapped}, session: $wrapped."))
+                 )(
+                   c =>
+                     Logger[F].info(
+                       s"Closing MessageConsumer $c for Destination ${jmsDestination.wrapped}, Session: $wrapped..."
+                     ) *>
+                       Sync[F].delay(c.close()) *>
+                       Logger[F].info(
+                         s"Closed MessageConsumer $c for Destination ${jmsDestination.wrapped}, Session: $wrapped."
+                       )
+                 )
+      _ <- Resource.liftF(
+            Logger[F].info(
+              s"Opened MessageConsumer $consumer for Destination ${jmsDestination.wrapped}, Session: $wrapped."
+            )
+          )
     } yield new JmsMessageConsumer[F](consumer)
 
   def createProducer(jmsDestination: JmsDestination): Resource[F, JmsMessageProducer[F]] =
     for {
       producer <- Resource.make(
-                   Logger[F].info(s"Opening MessageProducer for ${jmsDestination.wrapped}, session: $wrapped...") *>
+                   Logger[F].info(
+                     s"Opening MessageProducer for Destination ${jmsDestination.wrapped}, Session: $wrapped..."
+                   ) *>
                      Sync[F].delay(wrapped.createProducer(jmsDestination.wrapped))
-                 )(c => Sync[F].delay(c.close()))
-      _ <- Resource.liftF(Logger[F].info(s"Opened MessageProducer for ${jmsDestination.wrapped}, session: $wrapped."))
+                 )(
+                   c =>
+                     Logger[F].info(
+                       s"Closing MessageProducer $c for Destination ${jmsDestination.wrapped}, Session: $wrapped..."
+                     ) *>
+                       Sync[F].delay(c.close()) *>
+                       Logger[F].info(
+                         s"Closed MessageProducer $c for Destination ${jmsDestination.wrapped}, Session: $wrapped."
+                       )
+                 )
+      _ <- Resource.liftF(
+            Logger[F]
+              .info(s"Opened MessageProducer $producer for Destination ${jmsDestination.wrapped}, Session: $wrapped.")
+          )
     } yield new JmsMessageProducer(producer)
 
   val createUnidentifiedProducer: Resource[F, JmsUnidentifiedMessageProducer[F]] =
     for {
       producer <- Resource.make(
-                   Logger[F].info(s"Opening unidentified MessageProducer, session: $wrapped...") *>
+                   Logger[F].info(s"Opening unidentified MessageProducer, Session: $wrapped...") *>
                      Sync[F].delay(wrapped.createProducer(null))
-                 )(c => Sync[F].delay(c.close()))
-      _ <- Resource.liftF(Logger[F].info(s"Opened unidentified MessageProducer, session: $wrapped."))
+                 )(
+                   c =>
+                     Logger[F].info(
+                       s"Closing unidentified MessageProducer $c, Session: $wrapped..."
+                     ) *>
+                       Sync[F].delay(c.close()) *>
+                       Logger[F].info(
+                         s"Closed unidentified MessageProducer $c, Session: $wrapped."
+                       )
+                 )
+      _ <- Resource.liftF(Logger[F].info(s"Opened unidentified MessageProducer $producer, Session: $wrapped."))
     } yield new JmsUnidentifiedMessageProducer(producer)
 
   val createMessage: F[JmsMessage[F]] =

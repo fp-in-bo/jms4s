@@ -1,13 +1,11 @@
 package jms4s
 
-import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
-import cats.effect.{ Blocker, IO, Resource }
+import cats.effect.{ IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import jms4s.config._
-//import jms4s.ibmmq.ibmMQ.makeConnection
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsConnection, JmsMessageConsumer, MessageFactory }
 
@@ -16,33 +14,12 @@ import scala.concurrent.duration.{ FiniteDuration, _ }
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
-  val blockerRes: Resource[IO, Blocker] = Blocker.apply
-
-  val connectionRes: Resource[IO, JmsConnection[IO]] = blockerRes.flatMap(
-    blocker =>
-      activeMQ.makeConnection[IO](
-        Config(
-          qm = QueueManager("QM1"),
-          endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
-          // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
-          // but maybe it's just me not understanding something properly.. as usual
-          //          channel = Channel("DEV.APP.SVRCONN"),
-          //          username = Some(Username("app")),
-          //          password = None,
-          channel = Channel("DEV.ADMIN.SVRCONN"),
-          username = Some(Username("admin")),
-//          password = Some(Password("passw0rd")),
-          password = Some(Password("admin")),
-          clientId = "jms-specs"
-        ),
-        blocker
-      )
-  )
+  def connectionRes: Resource[IO, JmsConnection[IO]]
 
   val nMessages: Int              = 50
   val bodies: IndexedSeq[String]  = (0 until nMessages).map(i => s"$i")
   val poolSize: Int               = 4
-  val timeout: FiniteDuration     = 10.seconds
+  val timeout: FiniteDuration     = 2.seconds
   val delay: FiniteDuration       = 500.millis
   val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
   val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")

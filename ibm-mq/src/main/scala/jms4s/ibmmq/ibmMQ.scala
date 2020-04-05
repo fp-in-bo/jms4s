@@ -13,28 +13,33 @@ object ibmMQ {
 
   def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {
-      connection <- Resource.fromAutoCloseable(
-                     Logger[F].info(s"Opening QueueConnection to MQ at ${hosts(config.endpoints)}...") >>
+      connection <- Resource.make(
+                     Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") >>
                        Sync[F].delay {
-                         val queueConnectionFactory: MQConnectionFactory = new MQConnectionFactory()
-                         queueConnectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
-                         queueConnectionFactory.setQueueManager(config.qm.value)
-                         queueConnectionFactory.setConnectionNameList(hosts(config.endpoints))
-                         queueConnectionFactory.setChannel(config.channel.value)
-                         queueConnectionFactory.setClientID(config.clientId)
+                         val connectionFactory: MQConnectionFactory = new MQConnectionFactory()
+                         connectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
+                         connectionFactory.setQueueManager(config.qm.value)
+                         connectionFactory.setConnectionNameList(hosts(config.endpoints))
+                         connectionFactory.setChannel(config.channel.value)
+                         connectionFactory.setClientID(config.clientId)
 
                          val connection = config.username.map { (username) =>
-                           queueConnectionFactory.createConnection(
+                           connectionFactory.createConnection(
                              username.value,
                              config.password.map(_.value).getOrElse("")
                            )
-                         }.getOrElse(queueConnectionFactory.createConnection)
+                         }.getOrElse(connectionFactory.createConnection)
 
                          connection.start()
                          connection
                        }
+                   )(
+                     c =>
+                       Logger[F].info(s"Closing Connection $c at ${hosts(config.endpoints)}...") *>
+                         Sync[F].delay(c.close()) *>
+                         Logger[F].info(s"Closed Connection $c.")
                    )
-      _ <- Resource.liftF(Logger[F].info(s"Opened QueueConnection $connection."))
+      _ <- Resource.liftF(Logger[F].info(s"Opened Connection $connection at ${hosts(config.endpoints)}."))
     } yield new JmsConnection[F](connection, blocker)
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =

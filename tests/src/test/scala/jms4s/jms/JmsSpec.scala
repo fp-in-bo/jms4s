@@ -1,9 +1,12 @@
 package jms4s.jms
 
+import cats.data.NonEmptyList
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource }
+import cats.effect.{ Blocker, IO, Resource }
 import cats.implicits._
 import jms4s.Jms4sBaseSpec
+import jms4s.config._
+import jms4s.ibmmq.ibmMQ
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -65,4 +68,28 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       }
     }
   }
+
+  override def connectionRes: Resource[IO, JmsConnection[IO]] =
+    Blocker
+      .apply[IO]
+      .flatMap(
+        blocker =>
+          ibmMQ.makeConnection[IO](
+            Config(
+              qm = QueueManager("QM1"),
+              endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
+              // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
+              // but maybe it's just me not understanding something properly.. as usual
+              //          channel = Channel("DEV.APP.SVRCONN"),
+              //          username = Some(Username("app")),
+              //          password = None,
+              channel = Channel("DEV.ADMIN.SVRCONN"),
+              username = Some(Username("admin")),
+              password = Some(Password("passw0rd")),
+              //            password = Some(Password("admin")),
+              clientId = "jms-specs"
+            ),
+            blocker
+          )
+      )
 }

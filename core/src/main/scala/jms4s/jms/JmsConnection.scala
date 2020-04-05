@@ -14,9 +14,14 @@ class JmsConnection[F[_]: Sync: Logger] private[jms4s] (
   def createSession(sessionType: SessionType): Resource[F, JmsSession[F]] =
     for {
       session <- Resource.make(
-                  Logger[F].info(s"Opening QueueSession for $wrapped.") *>
+                  Logger[F].info(s"Opening Session for Connection $wrapped.") *>
                     Sync[F].delay(wrapped.createSession(sessionType.rawTransacted, sessionType.rawAcknowledgeMode))
-                )(x => Sync[F].delay(x.close()))
-      _ <- Resource.liftF(Logger[F].info(s"Opened QueueSession $session for $wrapped."))
+                )(
+                  s =>
+                    Logger[F].info(s"Closing Session $s for Connection $wrapped...") *>
+                      Sync[F].delay(s.close()) *>
+                      Logger[F].info(s"Closed Session $s for Connection $wrapped.")
+                )
+      _ <- Resource.liftF(Logger[F].info(s"Opened Session $session for Connection $wrapped."))
     } yield new JmsSession(session, blocker)
 }
