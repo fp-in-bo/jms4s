@@ -6,10 +6,23 @@ import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger
-import jms4s.config.{ Config, Endpoint }
 import jms4s.jms.JmsConnection
 
 object ibmMQ {
+
+  case class Config(
+    qm: QueueManager,
+    endpoints: NonEmptyList[Endpoint],
+    channel: Channel,
+    username: Option[Username] = None,
+    password: Option[Password] = None,
+    clientId: String
+  )
+  case class Username(value: String) extends AnyVal
+  case class Password(value: String) extends AnyVal
+  case class Endpoint(host: String, port: Int)
+  case class QueueManager(value: String) extends AnyVal
+  case class Channel(value: String)      extends AnyVal
 
   def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {

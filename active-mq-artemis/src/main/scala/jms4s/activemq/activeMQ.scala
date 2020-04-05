@@ -1,15 +1,24 @@
-package jms4s
+package jms4s.activemq
 
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Resource, Sync }
+import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.Connection
-import jms4s.config.{ Config, Endpoint }
 import jms4s.jms.JmsConnection
-import org.apache.activemq.ActiveMQConnectionFactory
-import cats.implicits._
+import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory
 
 object activeMQ {
+
+  case class Config(
+    endpoints: NonEmptyList[Endpoint],
+    username: Option[Username] = None,
+    password: Option[Password] = None,
+    clientId: String
+  )
+  case class Username(value: String) extends AnyVal
+  case class Password(value: String) extends AnyVal
+  case class Endpoint(host: String, port: Int)
 
   def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {
@@ -17,11 +26,7 @@ object activeMQ {
                      Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") *>
                        Sync[F].delay {
                          val connectionFactory: ActiveMQConnectionFactory =
-                           new ActiveMQConnectionFactory("tcp://localhost:61616")
-//            connectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
-//            connectionFactory.set(config.qm.value)
-//            connectionFactory.setConnectionNameList(hosts(config.endpoints))
-//            connectionFactory.setChannel(config.channel.value)
+                           new ActiveMQConnectionFactory(hosts(config.endpoints))
                          connectionFactory.setClientID(config.clientId)
 
                          val connection: Connection = config.username.map { (username) =>
@@ -44,6 +49,6 @@ object activeMQ {
     } yield new JmsConnection[F](connection, blocker)
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
-    endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")
+    endpoints.map(e => s"tcp://${e.host}:${e.port}").toList.mkString(",")
 
 }

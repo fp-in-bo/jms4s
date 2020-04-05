@@ -1,18 +1,17 @@
 package jms4s.jms
 
-import cats.data.NonEmptyList
+import java.util.concurrent.TimeUnit
+
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ Blocker, IO, Resource }
+import cats.effect.{ IO, Resource, Timer }
 import cats.implicits._
-import jms4s.Jms4sBaseSpec
-import jms4s.config._
-import jms4s.ibmmq.ibmMQ
+import jms4s.basespec.Jms4sBaseSpec
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
 import scala.concurrent.duration._
 
-class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
+trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   val expectedBody = "body"
   "Basic jms ops" - {
@@ -48,13 +47,13 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         case (consumer, producer, msg) =>
           for {
             _                 <- producer.setDeliveryDelay(delay)
-            producerTimestamp <- IO(System.currentTimeMillis())
+            producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
             _                 <- producer.send(msg)
             msg               <- consumer.receiveJmsMessage
             tm                <- msg.asJmsTextMessage
             body              <- tm.getText
             jmsDeliveryTime   <- tm.getJMSDeliveryTime
-            producerDelay     <- IO(jmsDeliveryTime - producerTimestamp)
+            producerDelay     = jmsDeliveryTime - producerTimestamp
           } yield assert(producerDelay >= delay.toMillis && body == expectedBody)
       }
     }
@@ -68,28 +67,4 @@ class JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       }
     }
   }
-
-  override def connectionRes: Resource[IO, JmsConnection[IO]] =
-    Blocker
-      .apply[IO]
-      .flatMap(
-        blocker =>
-          ibmMQ.makeConnection[IO](
-            Config(
-              qm = QueueManager("QM1"),
-              endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
-              // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
-              // but maybe it's just me not understanding something properly.. as usual
-              //          channel = Channel("DEV.APP.SVRCONN"),
-              //          username = Some(Username("app")),
-              //          password = None,
-              channel = Channel("DEV.ADMIN.SVRCONN"),
-              username = Some(Username("admin")),
-              password = Some(Password("passw0rd")),
-              //            password = Some(Password("admin")),
-              clientId = "jms-specs"
-            ),
-            blocker
-          )
-      )
 }

@@ -1,11 +1,12 @@
-package jms4s
+package jms4s.basespec
 
+import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
 import cats.effect.{ IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import jms4s.config._
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsConnection, JmsMessageConsumer, MessageFactory }
 
@@ -17,10 +18,10 @@ trait Jms4sBaseSpec {
   def connectionRes: Resource[IO, JmsConnection[IO]]
 
   val nMessages: Int              = 50
-  val bodies: IndexedSeq[String]  = (0 until nMessages).map(i => s"$i")
+  val bodies: List[String]        = (0 until nMessages).map(i => s"$i").toList
   val poolSize: Int               = 4
   val timeout: FiniteDuration     = 2.seconds
-  val delay: FiniteDuration       = 500.millis
+  val delay: FiniteDuration       = 200.millis
   val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
   val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")

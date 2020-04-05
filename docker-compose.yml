@@ -29,7 +29,10 @@ ibmmq:
 
 activemq:
   restart: always
-  image: rmohr/activemq
+  image: vromero/activemq-artemis # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
   ports:
-    - "8161:8161"
+    - "8161:8161" # http://localhost:8161/console
     - "61616:61616"
+  environment:
+    - ARTEMIS_USERNAME=admin
+    - ARTEMIS_PASSWORD=passw0rd
