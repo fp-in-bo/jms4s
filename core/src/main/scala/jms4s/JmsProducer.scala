@@ -1,10 +1,10 @@
 package jms4s
 
 import cats.effect.{ ContextShift, Sync }
-import jms4s.jms.{ JmsMessage, JmsMessageProducer }
 import cats.implicits._
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.duration._
+import jms4s.jms.{ JmsMessage, JmsMessageProducer }
+
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 class JmsProducer[F[_]: Sync: ContextShift] private[jms4s] (private[jms4s] val producer: JmsMessageProducer[F]) {
 
