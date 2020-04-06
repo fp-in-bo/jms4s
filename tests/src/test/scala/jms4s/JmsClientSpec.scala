@@ -1,9 +1,11 @@
 package jms4s
 
+import java.util.concurrent.TimeUnit
+
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource, Sync }
+import cats.effect.{ IO, Resource, Sync, Timer }
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
@@ -11,8 +13,6 @@ import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.jms.JmsMessage
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
-
-import scala.concurrent.duration._
 
 class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   private val jmsClient = new JmsClient[IO]
@@ -441,8 +441,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"sendN $nMessages messages with delay in a Queue with pooled producer and consume them" in {
     val jmsClient = new JmsClient[IO]
 
-    val body  = "body"
-    val delay = 200.millis
+    val body = "body"
     val res = for {
       connection     <- connectionRes
       session        <- connection.createSession(SessionType.AutoAcknowledge)
@@ -458,7 +457,7 @@ class JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     res.use {
       case (producer, outputConsumer, message) =>
         for {
-          producerTimestamp <- IO(System.currentTimeMillis())
+          producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
           _ <- producer.sendWithDelay(
                 messageWithDelayFactory((message, (outputQueueName1, Some(delay))))
               )

@@ -8,6 +8,7 @@ import jms4s.jms._
 import jms4s.model.SessionType
 import cats.implicits._
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 
 trait JmsPooledProducer[F[_]] {
 
@@ -73,10 +74,11 @@ object JmsPooledProducer {
                 messageWithDelay =>
                   for {
                     _ <- messageWithDelay._2 match {
-                          case Some(a) => resources.producer.setDeliveryDelay(a)
-                          case None    => Sync[F].unit
+                          case Some(delay) => resources.producer.setDeliveryDelay(delay)
+                          case None        => Sync[F].unit
                         }
                     _ <- resources.producer.send(messageWithDelay._1)
+                    _ <- resources.producer.setDeliveryDelay(0.millis)
                   } yield ()
               )
           _ <- pool.enqueue1(resources)
@@ -89,10 +91,11 @@ object JmsPooledProducer {
           resources         <- pool.dequeue1
           messagesWithDelay <- f(resources.messageFactory)
           _ <- messagesWithDelay._2 match {
-                case Some(a) => resources.producer.setDeliveryDelay(a)
-                case None    => Sync[F].unit
+                case Some(delay) => resources.producer.setDeliveryDelay(delay)
+                case None        => Sync[F].unit
               }
           _ <- resources.producer.send(messagesWithDelay._1)
+          _ <- resources.producer.setDeliveryDelay(0.millis)
           _ <- pool.enqueue1(resources)
 
         } yield ()
