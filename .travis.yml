@@ -13,8 +13,8 @@ services:
 
 stages:
   - name: test
-#  - name: release
-#    if: ((branch = master AND type = push) OR (tag IS present)) AND NOT fork
+  - name: release
+    if: ((branch = master AND type = push) OR (tag IS present)) AND NOT fork
 
 scala_version_213: &scala_version_213 "2.13.1"
 scala_version_212: &scala_version_212 "2.12.10"
@@ -22,15 +22,18 @@ scala_version_212: &scala_version_212 "2.12.10"
 jobs:
   include:
     # stage="test" if no stage is specified
+    - name: check code format
+      scala: *scala_version_213
+      script: sbt ++$TRAVIS_SCALA_VERSION scalafmtCheckAll
     - name: test 2.13
       scala: *scala_version_213
       before_script: docker-compose up -d
-      script: sbt ++$TRAVIS_SCALA_VERSION scalafmtCheckAll test
+      script: sbt ++$TRAVIS_SCALA_VERSION test
       after_script: docker-compose down
     - name: test 2.12
       scala: *scala_version_212
       before_script: docker-compose up -d
-      script: sbt ++$TRAVIS_SCALA_VERSION scalafmtCheckAll test
+      script: sbt ++$TRAVIS_SCALA_VERSION test
       after_script: docker-compose down
     - name: site
       scala: *scala_version_212
@@ -41,9 +44,9 @@ jobs:
         - gem install jekyll -v 4.0.0
       script: sbt ++$TRAVIS_SCALA_VERSION site/makeMicrosite
     # run ci-release only if previous stages passed
-#    - stage: release
-#      name: release
-#      script: sbt ci-release
+    - stage: release
+      name: release
+      script: sbt ci-release
 #    - stage: release
 #      name: microsite
 #      scala: *scala_version_212
