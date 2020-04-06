@@ -14,10 +14,10 @@ Support at the very least the following features:
   - [x] createQueueAutoAckConsumer
 
 - Publishing, returning a component which can publish messages
-  - [ ] createQueuePublisher
-  - [ ] createTopicPublisher
+  - [x] createQueuePublisher
+  - [x] createTopicPublisher
 
-- [x] Consuming and Publishing within the same transaction
+- [x] Consuming and Publishing within the same local transaction
 
 ## [Head on over to the microsite](https://fp-in-bo.github.io/jms4s)
 
