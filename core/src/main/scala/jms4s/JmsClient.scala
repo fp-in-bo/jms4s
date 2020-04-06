@@ -1,9 +1,12 @@
 package jms4s
 
 import cats.data._
-import cats.effect.{ Concurrent, ContextShift, Resource }
-import jms4s.config.DestinationName
+import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
+import cats.implicits._
+import jms4s.config.{ DestinationName }
 import jms4s.jms._
+import scala.concurrent.duration._
+import scala.concurrent.duration.FiniteDuration
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
@@ -75,4 +78,29 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
+
+  def createProducer(
+    connection: JmsConnection[F],
+    destinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsPooledProducer[F]] =
+    JmsPooledProducer.make(connection, destinationName, concurrencyLevel)
+
+  def createProducer(
+    connection: JmsConnection[F],
+    concurrencyLevel: Int
+  ): Resource[F, JmsUnidentifiedPooledProducer[F]] =
+    JmsUnidentifiedPooledProducer.make(connection, concurrencyLevel)
+
+}
+
+class JmsUnidentifiedProducer[F[_]: Sync: ContextShift] private[jms4s] (
+  private[jms4s] val producer: JmsUnidentifiedMessageProducer[F]
+) {
+
+  def publish(destination: JmsDestination, message: JmsMessage[F]): F[Unit] =
+    producer.send(destination, message)
+
+  def publish(destination: JmsDestination, message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
+    producer.setDeliveryDelay(delay) >> producer.send(destination, message) >> producer.setDeliveryDelay(0.millis)
 }
