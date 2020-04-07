@@ -16,13 +16,14 @@ object ibmMQ {
     channel: Channel,
     username: Option[Username] = None,
     password: Option[Password] = None,
-    clientId: String
+    clientId: ClientId
   )
   case class Username(value: String) extends AnyVal
   case class Password(value: String) extends AnyVal
   case class Endpoint(host: String, port: Int)
   case class QueueManager(value: String) extends AnyVal
   case class Channel(value: String)      extends AnyVal
+  case class ClientId(value: String)     extends AnyVal
 
   def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {
@@ -34,7 +35,7 @@ object ibmMQ {
                          connectionFactory.setQueueManager(config.qm.value)
                          connectionFactory.setConnectionNameList(hosts(config.endpoints))
                          connectionFactory.setChannel(config.channel.value)
-                         connectionFactory.setClientID(config.clientId)
+                         connectionFactory.setClientID(config.clientId.value)
 
                          val connection = config.username.map { (username) =>
                            connectionFactory.createConnection(

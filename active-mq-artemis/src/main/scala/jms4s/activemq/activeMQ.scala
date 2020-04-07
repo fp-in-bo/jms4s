@@ -4,7 +4,6 @@ import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Resource, Sync }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
-import javax.jms.Connection
 import jms4s.jms.JmsConnection
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory
 
@@ -14,11 +13,12 @@ object activeMQ {
     endpoints: NonEmptyList[Endpoint],
     username: Option[Username] = None,
     password: Option[Password] = None,
-    clientId: String
+    clientId: ClientId
   )
   case class Username(value: String) extends AnyVal
   case class Password(value: String) extends AnyVal
   case class Endpoint(host: String, port: Int)
+  case class ClientId(value: String) extends AnyVal
 
   def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
     for {
@@ -26,7 +26,7 @@ object activeMQ {
                      Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") *>
                        Sync[F].delay {
                          val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
-                         factory.setClientID(config.clientId)
+                         factory.setClientID(config.clientId.value)
 
                          val connection = config.username.fold(factory.createConnection)(
                            username =>

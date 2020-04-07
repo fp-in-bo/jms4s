@@ -25,7 +25,7 @@ trait IbmMQBaseSpec extends Jms4sBaseSpec {
               channel = Channel("DEV.ADMIN.SVRCONN"),
               username = Some(Username("admin")),
               password = Some(Password("passw0rd")),
-              clientId = "jms-specs"
+              clientId = ClientId("jms-specs")
             ),
             blocker
           )
