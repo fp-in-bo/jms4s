@@ -44,6 +44,7 @@ trait Jms4sBaseSpec {
   val timeout: FiniteDuration     = 2.seconds
   val delay: FiniteDuration       = 500.millis
   val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
+  val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
   val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
@@ -52,6 +53,10 @@ trait Jms4sBaseSpec {
     consumer.receiveJmsMessage
       .flatMap(_.asJmsTextMessage)
       .flatMap(_.getText)
+
+  def receiveMessage(consumer: JmsMessageConsumer[IO]): IO[JmsTextMessage[IO]] =
+    consumer.receiveJmsMessage
+      .flatMap(_.asJmsTextMessage)
 
   def receiveUntil(
     consumer: JmsMessageConsumer[IO],
@@ -71,5 +76,41 @@ trait Jms4sBaseSpec {
         .makeTextMessage(text)
         .map(message => (message, destinationName))
     }
+  }
+
+  def messageFactory(
+    message: JmsTextMessage[IO]
+  ): MessageFactory[IO] => IO[JmsTextMessage[IO]] = { mFactory: MessageFactory[IO] =>
+    message.getText.flatMap { text =>
+      mFactory
+        .makeTextMessage(text)
+        .map(message => (message))
+    }
+  }
+
+  def messageWithDelayFactory(
+    message: (JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))
+  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] = {
+    mFactory: MessageFactory[IO] =>
+      message._1.getText.flatMap { text =>
+        mFactory
+          .makeTextMessage(text)
+          .map(m => (m, (message._2._1, message._2._2)))
+      }
+  }
+
+  def messageFactory(
+    messages: NonEmptyList[JmsTextMessage[IO]]
+  ): MessageFactory[IO] => IO[NonEmptyList[JmsTextMessage[IO]]] = { mFactory: MessageFactory[IO] =>
+    messages
+      .map(
+        message =>
+          message.getText.flatMap { text =>
+            mFactory
+              .makeTextMessage(text)
+              .map(message => (message))
+          }
+      )
+      .sequence
   }
 }
