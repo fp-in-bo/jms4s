@@ -421,8 +421,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           receivedMessage   <- receiveMessage(outputConsumer).timeout(timeout)
           actualBody        <- receivedMessage.getText
-          jmsDeliveryTime   <- receivedMessage.getJMSDeliveryTime
-          actualDelay       = jmsDeliveryTime - producerTimestamp
+          deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          actualDelay       = deliveryTime - producerTimestamp
         } yield assert(actualDelay >= delay.toMillis && actualBody == body)
     }
   }

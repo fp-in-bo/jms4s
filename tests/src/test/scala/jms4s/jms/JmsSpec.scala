@@ -50,9 +50,9 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           msg               <- consumer.receiveJmsMessage
           tm                <- msg.asJmsTextMessage
           body              <- tm.getText
-          jmsDeliveryTime   <- tm.getJMSDeliveryTime
-          producerDelay     = jmsDeliveryTime - producerTimestamp
-        } yield assert(producerDelay >= delay.toMillis && body == body)
+          deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          actualDelay       = deliveryTime - producerTimestamp
+        } yield assert(actualDelay >= delay.toMillis && body == body)
     }
   }
   "publish to a topic and then receive" in {

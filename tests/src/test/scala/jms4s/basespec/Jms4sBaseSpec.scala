@@ -21,8 +21,8 @@ trait Jms4sBaseSpec {
   val nMessages: Int              = 50
   val bodies: List[String]        = (0 until nMessages).map(i => s"$i").toList
   val poolSize: Int               = 4
-  val timeout: FiniteDuration     = 2.seconds
-  val delay: FiniteDuration       = 200.millis
+  val timeout: FiniteDuration     = 4.seconds // CI is slow...
+  val delay: FiniteDuration       = 100.millis
   val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
   val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")
   val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
