@@ -1,4 +1,4 @@
-ibmMQ:
+ibmmq:
   restart: always
   image: ibmcom/mq # https://github.com/ibm-messaging/mq-docker
   ports:
@@ -26,3 +26,13 @@ ibmMQ:
 
 #  Topic
 #  DEV.BASE.TOPIC - With a topic string of dev/
+
+activemq:
+  restart: always
+  image: vromero/activemq-artemis # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
+  ports:
+    - "8161:8161" # http://localhost:8161/console
+    - "61616:61616"
+  environment:
+    - ARTEMIS_USERNAME=admin
+    - ARTEMIS_PASSWORD=passw0rd

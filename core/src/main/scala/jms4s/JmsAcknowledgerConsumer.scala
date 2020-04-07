@@ -10,7 +10,6 @@ import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAcknowledgerConsumer.JmsAcknowledgerConsumerPool.JmsResource
 import jms4s.config.DestinationName
 import jms4s.jms.{ JmsConnection, JmsMessage, JmsMessageConsumer, MessageFactory }
-import jms4s.model.SessionType
 import jms4s.model.SessionType.ClientAcknowledge
 
 import scala.concurrent.duration.FiniteDuration
@@ -49,7 +48,7 @@ object JmsAcknowledgerConsumer {
     for {
       inputDestination <- Resource.liftF(
                            connection
-                             .createSession(SessionType.ClientAcknowledge)
+                             .createSession(ClientAcknowledge)
                              .use(_.createDestination(inputDestinationName))
                          )
       outputDestinations <- Resource.liftF(
@@ -57,7 +56,7 @@ object JmsAcknowledgerConsumer {
                                .traverse(
                                  outputDestinationName =>
                                    connection
-                                     .createSession(SessionType.ClientAcknowledge)
+                                     .createSession(ClientAcknowledge)
                                      .use(_.createDestination(outputDestinationName))
                                      .map(jmsDestination => (outputDestinationName, jmsDestination))
                                )
@@ -65,7 +64,7 @@ object JmsAcknowledgerConsumer {
       queue <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session  <- connection.createSession(SessionType.ClientAcknowledge)
+              session  <- connection.createSession(ClientAcknowledge)
               consumer <- session.createConsumer(inputDestination)
               producers <- outputDestinations.traverse {
                             case (outputDestinationName, outputDestination) =>
@@ -89,18 +88,18 @@ object JmsAcknowledgerConsumer {
     for {
       inputDestination <- Resource.liftF(
                            connection
-                             .createSession(SessionType.ClientAcknowledge)
+                             .createSession(ClientAcknowledge)
                              .use(_.createDestination(inputDestinationName))
                          )
       outputDestination <- Resource.liftF(
                             connection
-                              .createSession(SessionType.ClientAcknowledge)
+                              .createSession(ClientAcknowledge)
                               .use(_.createDestination(outputDestinationName))
                           )
       pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session     <- connection.createSession(SessionType.ClientAcknowledge)
+              session     <- connection.createSession(ClientAcknowledge)
               consumer    <- session.createConsumer(inputDestination)
               jmsProducer <- session.createProducer(outputDestination)
               producer    = Map(outputDestinationName -> new JmsProducer(jmsProducer))

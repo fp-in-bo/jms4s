@@ -1,6 +1,7 @@
 val catsV                = "2.0.0"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.1.4.0"
+val activeMQV            = "2.11.0"
 val catsEffectV          = "2.0.0"
 val catsEffectScalaTestV = "0.4.0"
 val fs2V                 = "2.0.0"
@@ -14,7 +15,7 @@ val betterMonadicForV = "0.3.1"
 lazy val jms4s = project
   .in(file("."))
   .enablePlugins(NoPublishPlugin)
-  .aggregate(core, ibmMQ, tests, examples, site)
+  .aggregate(core, ibmMQ, activeMQArtemis, tests, examples, site)
 
 lazy val core = project
   .in(file("core"))
@@ -30,19 +31,27 @@ lazy val ibmMQ = project
   .settings(parallelExecution in Test := false)
   .dependsOn(core)
 
+lazy val activeMQArtemis = project
+  .in(file("active-mq-artemis"))
+  .settings(commonSettings)
+  .settings(name := "jms4s-active-mq-artemis")
+  .settings(libraryDependencies += "org.apache.activemq" % "artemis-jms-client-all" % activeMQV)
+  .settings(parallelExecution in Test := false)
+  .dependsOn(core)
+
 lazy val tests = project
   .in(file("tests"))
   .settings(commonSettings: _*)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
   .settings(parallelExecution in Test := false)
-  .dependsOn(core, ibmMQ)
+  .dependsOn(ibmMQ, activeMQArtemis)
 
 lazy val examples = project
   .in(file("examples"))
   .settings(commonSettings: _*)
   .enablePlugins(NoPublishPlugin)
-  .dependsOn(core, ibmMQ)
+  .dependsOn(ibmMQ, activeMQArtemis)
 
 lazy val site = project
   .in(file("site"))
@@ -50,7 +59,7 @@ lazy val site = project
   .enablePlugins(MdocPlugin)
   .enablePlugins(NoPublishPlugin)
   .settings(commonSettings)
-  .dependsOn(core)
+  .dependsOn(core, ibmMQ, activeMQArtemis)
   .settings {
     import microsites._
     Seq(

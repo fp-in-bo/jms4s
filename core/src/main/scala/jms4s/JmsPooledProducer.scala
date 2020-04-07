@@ -5,8 +5,9 @@ import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import fs2.concurrent.Queue
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType
 import cats.implicits._
+import jms4s.model.SessionType.AutoAcknowledge
+
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 
@@ -41,7 +42,7 @@ object JmsPooledProducer {
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session     <- connection.createSession(SessionType.AutoAcknowledge)
+              session     <- connection.createSession(AutoAcknowledge)
               destination <- Resource.liftF(session.createDestination(queue))
               producer    <- session.createProducer(destination)
               _           <- Resource.liftF(pool.enqueue1(JmsResource(session, producer, new MessageFactory(session))))
@@ -54,14 +55,8 @@ object JmsPooledProducer {
         for {
           resources <- pool.dequeue1
           messages  <- f(resources.messageFactory)
-          _ <- messages.traverse_(
-                message =>
-                  for {
-                    _ <- resources.producer
-                          .send(message)
-                  } yield ()
-              )
-          _ <- pool.enqueue1(resources)
+          _         <- messages.traverse_(message => resources.producer.send(message))
+          _         <- pool.enqueue1(resources)
         } yield ()
 
       override def sendNWithDelay(
@@ -104,11 +99,8 @@ object JmsPooledProducer {
         for {
           resources <- pool.dequeue1
           message   <- f(resources.messageFactory)
-          _ <- for {
-                _ <- resources.producer
-                      .send(message)
-              } yield ()
-          _ <- pool.enqueue1(resources)
+          _         <- resources.producer.send(message)
+          _         <- pool.enqueue1(resources)
         } yield ()
     }
 

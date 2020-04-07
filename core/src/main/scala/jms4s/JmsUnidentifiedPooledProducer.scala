@@ -6,10 +6,9 @@ import cats.implicits._
 import fs2.concurrent.Queue
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType
+import jms4s.model.SessionType.AutoAcknowledge
 
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.duration._
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait JmsUnidentifiedPooledProducer[F[_]] {
 
@@ -41,7 +40,7 @@ object JmsUnidentifiedPooledProducer {
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session  <- connection.createSession(SessionType.AutoAcknowledge)
+              session  <- connection.createSession(AutoAcknowledge)
               producer <- session.createUnidentifiedProducer
               _        <- Resource.liftF(pool.enqueue1(JmsResource(session, producer, new MessageFactory(session))))
             } yield ()
