@@ -25,16 +25,13 @@ object activeMQ {
       connection <- Resource.make(
                      Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") *>
                        Sync[F].delay {
-                         val connectionFactory: ActiveMQConnectionFactory =
-                           new ActiveMQConnectionFactory(hosts(config.endpoints))
-                         connectionFactory.setClientID(config.clientId)
+                         val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
+                         factory.setClientID(config.clientId)
 
-                         val connection: Connection = config.username.map { (username) =>
-                           connectionFactory.createConnection(
-                             username.value,
-                             config.password.map(_.value).getOrElse("")
-                           )
-                         }.getOrElse(connectionFactory.createConnection)
+                         val connection = config.username.fold(factory.createConnection)(
+                           username =>
+                             factory.createConnection(username.value, config.password.map(_.value).getOrElse(""))
+                         )
 
                          connection.start()
                          connection
