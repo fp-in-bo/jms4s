@@ -10,7 +10,6 @@ import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.{ JmsResource, Rece
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType
 import jms4s.model.SessionType.Transacted
 
 import scala.concurrent.duration.FiniteDuration
@@ -31,7 +30,7 @@ object JmsTransactedConsumer {
       pool  <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session  <- connection.createSession(SessionType.Transacted)
+              session  <- connection.createSession(Transacted)
               consumer <- session.createConsumer(input)
               _ <- Resource.liftF(
                     pool.enqueue1(JmsResource(session, consumer, Map.empty, new MessageFactory[F](session)))
@@ -49,7 +48,7 @@ object JmsTransactedConsumer {
     for {
       inputDestination <- Resource.liftF(
                            connection
-                             .createSession(SessionType.Transacted)
+                             .createSession(Transacted)
                              .use(_.createDestination(inputDestinationName))
                          )
       outputDestinations <- Resource.liftF(
@@ -57,7 +56,7 @@ object JmsTransactedConsumer {
                                .traverse(
                                  outputDestinationName =>
                                    connection
-                                     .createSession(SessionType.Transacted)
+                                     .createSession(Transacted)
                                      .use(_.createDestination(outputDestinationName))
                                      .map(jmsDestination => (outputDestinationName, jmsDestination))
                                )
@@ -67,7 +66,7 @@ object JmsTransactedConsumer {
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session  <- connection.createSession(SessionType.Transacted)
+              session  <- connection.createSession(Transacted)
               consumer <- session.createConsumer(inputDestination)
               producers <- outputDestinations.traverse {
                             case (outputDestinationName, outputDestination) =>
@@ -91,18 +90,18 @@ object JmsTransactedConsumer {
     for {
       inputDestination <- Resource.liftF(
                            connection
-                             .createSession(SessionType.Transacted)
+                             .createSession(Transacted)
                              .use(_.createDestination(inputDestinationName))
                          )
       outputDestination <- Resource.liftF(
                             connection
-                              .createSession(SessionType.Transacted)
+                              .createSession(Transacted)
                               .use(_.createDestination(outputDestinationName))
                           )
       pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session     <- connection.createSession(SessionType.Transacted)
+              session     <- connection.createSession(Transacted)
               consumer    <- session.createConsumer(inputDestination)
               jmsProducer <- session.createProducer(outputDestination)
               producer    = Map(outputDestinationName -> new JmsProducer(jmsProducer))

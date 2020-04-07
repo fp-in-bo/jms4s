@@ -17,6 +17,7 @@ trait Jms4sBaseSpec {
 
   def connectionRes: Resource[IO, JmsConnection[IO]]
 
+  val body                        = "body"
   val nMessages: Int              = 50
   val bodies: List[String]        = (0 until nMessages).map(i => s"$i").toList
   val poolSize: Int               = 4
