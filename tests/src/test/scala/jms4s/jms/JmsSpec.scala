@@ -19,8 +19,8 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       connection    <- connectionRes
       session       <- connection.createSession(SessionType.AutoAcknowledge)
       queue         <- Resource.liftF(session.createQueue(inputQueueName))
-      queueConsumer <- session.createConsumer(queue)
-      queueProducer <- session.createProducer(queue)
+      queueConsumer <- connection.createSession(SessionType.AutoAcknowledge).flatMap(_.createConsumer(queue))
+      queueProducer <- connection.createSession(SessionType.AutoAcknowledge).flatMap(_.createProducer(queue))
       msg           <- Resource.liftF(session.createTextMessage(expectedBody))
     } yield (queueConsumer, queueProducer, msg)
 
@@ -28,8 +28,8 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       connection    <- connectionRes
       session       <- connection.createSession(SessionType.AutoAcknowledge)
       topic         <- Resource.liftF(session.createTopic(topicName))
-      topicConsumer <- session.createConsumer(topic)
-      topicProducer <- session.createProducer(topic)
+      topicConsumer <- connection.createSession(SessionType.AutoAcknowledge).flatMap(_.createConsumer(topic))
+      topicProducer <- connection.createSession(SessionType.AutoAcknowledge).flatMap(_.createProducer(topic))
       msg           <- Resource.liftF(session.createTextMessage(expectedBody))
     } yield (topicConsumer, topicProducer, msg)
 
