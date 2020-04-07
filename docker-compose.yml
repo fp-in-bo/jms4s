@@ -4,9 +4,13 @@ ibmMQ:
   ports:
     - "1414:1414"
     - "9443:9443" #  https://localhost:9443/ibmmq/console/
+  volumes:
+        - ./scripts/definitions.mqsc:/etc/mqm/definitions.mqsc:ro
   environment:
     - LICENSE=accept
     - MQ_QMGR_NAME=QM1
+    - MQ_DEV=false
+
 # Users
 # Userid: admin Groups: mqm Password: passw0rd
 # Userid: app Groups: mqclient Password:
