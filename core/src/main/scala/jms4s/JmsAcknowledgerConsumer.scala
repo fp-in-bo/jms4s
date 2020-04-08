@@ -123,7 +123,7 @@ object JmsAcknowledgerConsumer {
               message  <- resource.consumer.receiveJmsMessage
               res      <- f(message)
               _ <- res.fold(
-                    ifAck = blocker.blockOn(Sync[F].delay(message.wrapped.acknowledge())),
+                    ifAck = blocker.delay(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
                       blocker.blockOn(

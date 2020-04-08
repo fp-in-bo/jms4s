@@ -1,7 +1,7 @@
 package jms4s.ibmmq
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Resource, Sync }
+import cats.effect.{ Blocker, ContextShift, Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
@@ -25,11 +25,14 @@ object ibmMQ {
   case class Channel(value: String)      extends AnyVal
   case class ClientId(value: String)     extends AnyVal
 
-  def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
+  def makeConnection[F[_]: Sync: Logger: ContextShift](
+    config: Config,
+    blocker: Blocker
+  ): Resource[F, JmsConnection[F]] =
     for {
       connection <- Resource.make(
                      Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") >>
-                       Sync[F].delay {
+                       blocker.delay {
                          val connectionFactory: MQConnectionFactory = new MQConnectionFactory()
                          connectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
                          connectionFactory.setQueueManager(config.qm.value)
@@ -50,7 +53,7 @@ object ibmMQ {
                    )(
                      c =>
                        Logger[F].info(s"Closing Connection $c at ${hosts(config.endpoints)}...") *>
-                         Sync[F].delay(c.close()) *>
+                         blocker.delay(c.close()) *>
                          Logger[F].info(s"Closed Connection $c.")
                    )
       _ <- Resource.liftF(Logger[F].info(s"Opened Connection $connection at ${hosts(config.endpoints)}."))
