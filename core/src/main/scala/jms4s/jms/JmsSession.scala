@@ -80,13 +80,9 @@ class JmsSession[F[_]: Sync: Logger: ContextShift] private[jms4s] (
                      blocker.delay(wrapped.createProducer(null))
                  )(
                    c =>
-                     Logger[F].info(
-                       s"Closing unidentified MessageProducer $c, Session: $wrapped..."
-                     ) *>
+                     Logger[F].info(s"Closing unidentified MessageProducer $c, Session: $wrapped...") *>
                        blocker.delay(c.close()) *>
-                       Logger[F].info(
-                         s"Closed unidentified MessageProducer $c, Session: $wrapped."
-                       )
+                       Logger[F].info(s"Closed unidentified MessageProducer $c, Session: $wrapped.")
                  )
       _ <- Resource.liftF(Logger[F].info(s"Opened unidentified MessageProducer $producer, Session: $wrapped."))
     } yield new JmsUnidentifiedMessageProducer(producer, blocker)
@@ -101,8 +97,8 @@ class JmsSession[F[_]: Sync: Logger: ContextShift] private[jms4s] (
     Sync[F].delay(new JmsTextMessage(wrapped.createTextMessage(string)))
 
   def commit: F[Unit] =
-    blocker.blockOn(Sync[F].delay(wrapped.commit()))
+    blocker.delay(wrapped.commit())
 
   def rollback: F[Unit] =
-    blocker.blockOn(Sync[F].delay(wrapped.rollback()))
+    blocker.delay(wrapped.rollback())
 }
