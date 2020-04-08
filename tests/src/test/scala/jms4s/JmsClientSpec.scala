@@ -13,6 +13,7 @@ import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
+import scala.concurrent.duration._
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   private val jmsClient = new JmsClient[IO]
@@ -420,10 +421,10 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                 <- logger.info(s"Pushed message with body: $body.")
           _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           receivedMessage   <- receiveMessage(outputConsumer).timeout(timeout)
-          actualBody        <- receivedMessage.getText
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
-          actualDelay       = deliveryTime - producerTimestamp
-        } yield assert(actualDelay >= delay.toMillis && actualBody == body)
+          actualBody        <- receivedMessage.getText
+          actualDelay       = (deliveryTime - producerTimestamp).millis
+        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }
   }
 }

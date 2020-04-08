@@ -44,15 +44,15 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     queueRes.use {
       case (consumer, producer, msg) =>
         for {
-          _                 <- producer.setDeliveryDelay(delay)
           producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          _                 <- producer.setDeliveryDelay(delay)
           _                 <- producer.send(msg)
           msg               <- consumer.receiveJmsMessage
-          tm                <- msg.asJmsTextMessage
-          body              <- tm.getText
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
-          actualDelay       = deliveryTime - producerTimestamp
-        } yield assert(actualDelay >= delay.toMillis && body == body)
+          tm                <- msg.asJmsTextMessage
+          actualBody        <- tm.getText
+          actualDelay       = (deliveryTime - producerTimestamp).millis
+        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }
   }
   "publish to a topic and then receive" in {

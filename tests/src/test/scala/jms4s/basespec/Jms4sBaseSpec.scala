@@ -17,17 +17,18 @@ trait Jms4sBaseSpec {
 
   def connectionRes(implicit cs: ContextShift[IO]): Resource[IO, JmsConnection[IO]]
 
-  val body                        = "body"
-  val nMessages: Int              = 50
-  val bodies: List[String]        = (0 until nMessages).map(i => s"$i").toList
-  val poolSize: Int               = 4
-  val timeout: FiniteDuration     = 4.seconds // CI is slow...
-  val delay: FiniteDuration       = 100.millis
-  val topicName: TopicName        = TopicName("DEV.BASE.TOPIC")
-  val topicName2: TopicName       = TopicName("DEV.BASE.TOPIC.1")
-  val inputQueueName: QueueName   = QueueName("DEV.QUEUE.1")
-  val outputQueueName1: QueueName = QueueName("DEV.QUEUE.2")
-  val outputQueueName2: QueueName = QueueName("DEV.QUEUE.3")
+  val body                         = "body"
+  val nMessages: Int               = 50
+  val bodies: List[String]         = (0 until nMessages).map(i => s"$i").toList
+  val poolSize: Int                = 4
+  val timeout: FiniteDuration      = 4.seconds // CI is slow...
+  val delay: FiniteDuration        = 200.millis
+  val delayWithTolerance: Duration = delay * 0.8 // it looks like activemq is not fully respecting delivery delay
+  val topicName: TopicName         = TopicName("DEV.BASE.TOPIC")
+  val topicName2: TopicName        = TopicName("DEV.BASE.TOPIC.1")
+  val inputQueueName: QueueName    = QueueName("DEV.QUEUE.1")
+  val outputQueueName1: QueueName  = QueueName("DEV.QUEUE.2")
+  val outputQueueName2: QueueName  = QueueName("DEV.QUEUE.3")
 
   def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
     consumer.receiveJmsMessage
