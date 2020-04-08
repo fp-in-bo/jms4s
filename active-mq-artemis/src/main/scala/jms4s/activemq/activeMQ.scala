@@ -1,7 +1,7 @@
 package jms4s.activemq
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Resource, Sync }
+import cats.effect.{ Blocker, ContextShift, Resource, Sync }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import jms4s.jms.JmsConnection
@@ -20,11 +20,14 @@ object activeMQ {
   case class Endpoint(host: String, port: Int)
   case class ClientId(value: String) extends AnyVal
 
-  def makeConnection[F[_]: Sync: Logger](config: Config, blocker: Blocker): Resource[F, JmsConnection[F]] =
+  def makeConnection[F[_]: ContextShift: Sync: Logger](
+    config: Config,
+    blocker: Blocker
+  ): Resource[F, JmsConnection[F]] =
     for {
       connection <- Resource.make(
                      Logger[F].info(s"Opening Connection to MQ at ${hosts(config.endpoints)}...") *>
-                       Sync[F].delay {
+                       blocker.delay {
                          val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
                          factory.setClientID(config.clientId.value)
 
@@ -39,7 +42,7 @@ object activeMQ {
                    )(
                      c =>
                        Logger[F].info(s"Closing Connection $c to MQ at ${hosts(config.endpoints)}...") *>
-                         Sync[F].delay(c.close()) *>
+                         blocker.delay(c.close()) *>
                          Logger[F].info(s"Closed Connection $c to MQ at ${hosts(config.endpoints)}.")
                    )
       _ <- Resource.liftF(Logger[F].info(s"Opened connection $connection."))
