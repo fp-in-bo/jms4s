@@ -7,8 +7,22 @@ import jms4s.jms._
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
+  def createTransactedConsumerProgram(
+    context: JmsContext[F],
+    inputDestinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsTransactedConsumer[F]] =
+    JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel)
+
   def createTransactedConsumer(
     connection: JmsConnection[F],
+    inputDestinationName: DestinationName,
+    concurrencyLevel: Int
+  ): Resource[F, JmsTransactedConsumer[F]] =
+    JmsTransactedConsumer.make(connection, inputDestinationName, concurrencyLevel)
+
+  def createTransactedConsumer(
+    connection: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
   ): Resource[F, JmsTransactedConsumer[F]] =

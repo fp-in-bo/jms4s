@@ -6,7 +6,7 @@ import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger
-import jms4s.jms.JmsConnection
+import jms4s.jms.{ JmsConnection, JmsContext }
 
 object ibmMQ {
 
@@ -58,6 +58,37 @@ object ibmMQ {
                    )
       _ <- Resource.liftF(Logger[F].info(s"Opened Connection $connection at ${hosts(config.endpoints)}."))
     } yield new JmsConnection[F](connection, blocker)
+
+  def makeContext[F[_]: Sync: Logger: ContextShift](
+    config: Config,
+    blocker: Blocker
+  ): Resource[F, JmsContext[F]] =
+    for {
+      context <- Resource.make(
+                  Logger[F].info(s"Opening Context to MQ at ${hosts(config.endpoints)}...") >>
+                    blocker.delay {
+                      val connectionFactory: MQConnectionFactory = new MQConnectionFactory()
+                      connectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
+                      connectionFactory.setQueueManager(config.qm.value)
+                      connectionFactory.setConnectionNameList(hosts(config.endpoints))
+                      connectionFactory.setChannel(config.channel.value)
+                      connectionFactory.setClientID(config.clientId.value)
+
+                      config.username.map { username =>
+                        connectionFactory.createContext(
+                          username.value,
+                          config.password.map(_.value).getOrElse("")
+                        )
+                      }.getOrElse(connectionFactory.createContext())
+                    }
+                )(
+                  c =>
+                    Logger[F].info(s"Closing Context $c at ${hosts(config.endpoints)}...") *>
+                      blocker.delay(c.close()) *>
+                      Logger[F].info(s"Closed Context $c.")
+                )
+      _ <- Resource.liftF(Logger[F].info(s"Opened Context $context at ${hosts(config.endpoints)}."))
+    } yield new JmsContext[F](context, blocker)
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
     endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")

@@ -25,7 +25,9 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       queue      <- Resource.liftF(session.createQueue(inputQueueName))
       producer   <- connection.createSession(AutoAcknowledge).flatMap(_.createProducer(queue))
       messages   <- Resource.liftF(bodies.traverse(i => session.createTextMessage(i)))
-      consumer   <- jmsClient.createTransactedConsumer(connection, inputQueueName, poolSize)
+
+      context <- contextRes
+      consumer   <- jmsClient.createTransactedConsumer(context, inputQueueName, poolSize)
     } yield (consumer, producer, bodies.toSet, messages)
 
     res.use {
@@ -60,10 +62,11 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       outputConsumer1 <- connection.createSession(AutoAcknowledge).flatMap(_.createConsumer(outputQueue1))
       outputConsumer2 <- connection.createSession(AutoAcknowledge).flatMap(_.createConsumer(outputQueue2))
       messages        <- Resource.liftF(bodies.traverse(i => session.createTextMessage(i)))
-      consumer <- jmsClient.createTransactedConsumerToProducers(
-                   connection,
+
+      context <- contextRes
+      consumer <- jmsClient.createTransactedConsumer(
+                   context,
                    inputQueueName,
-                   NonEmptyList.of(outputQueueName1, outputQueueName2),
                    poolSize
                  )
     } yield (consumer, inputProducer, outputConsumer1, outputConsumer2, bodies.toSet, messages)
@@ -103,6 +106,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       queue      <- Resource.liftF(session.createQueue(inputQueueName))
       producer   <- connection.createSession(AutoAcknowledge).flatMap(_.createProducer(queue))
       messages   <- Resource.liftF(bodies.traverse(i => session.createTextMessage(i)))
+
       consumer   <- jmsClient.createAcknowledgerConsumer(connection, inputQueueName, poolSize)
     } yield (consumer, producer, bodies.toSet, messages)
 

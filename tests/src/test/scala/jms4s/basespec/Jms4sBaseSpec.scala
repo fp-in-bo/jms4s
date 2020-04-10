@@ -2,20 +2,22 @@ package jms4s.basespec
 
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
-import cats.effect.{ ContextShift, IO, Resource }
+import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import jms4s.config.{ DestinationName, QueueName, TopicName }
+import jms4s.config.{DestinationName, QueueName, TopicName}
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsConnection, JmsMessageConsumer, MessageFactory }
+import jms4s.jms.{JmsConnection, JmsContext, JmsMessageConsumer, MessageFactory}
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.duration.{FiniteDuration, _}
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   def connectionRes(implicit cs: ContextShift[IO]): Resource[IO, JmsConnection[IO]]
+
+  def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]]
 
   val body                         = "body"
   val nMessages: Int               = 50
