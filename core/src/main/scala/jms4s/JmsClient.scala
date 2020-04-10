@@ -7,42 +7,12 @@ import jms4s.jms._
 
 class JmsClient[F[_]: ContextShift: Concurrent] {
 
-  def createTransactedConsumerProgram(
+  def createTransactedConsumer(
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
   ): Resource[F, JmsTransactedConsumer[F]] =
     JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel)
-
-  def createTransactedConsumer(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(connection, inputDestinationName, concurrencyLevel)
-
-  def createTransactedConsumer(
-    connection: JmsContext[F],
-    inputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(connection, inputDestinationName, concurrencyLevel)
-
-  def createTransactedConsumerToProducers(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationNames: NonEmptyList[DestinationName],
-    concurrencyLevel: Int
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(connection, inputDestinationName, outputDestinationNames, concurrencyLevel)
-
-  def createTransactedConsumerToProducer(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
 
   def createAcknowledgerConsumer(
     connection: JmsConnection[F],

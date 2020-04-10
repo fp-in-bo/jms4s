@@ -32,8 +32,8 @@ trait Jms4sBaseSpec {
   val outputQueueName1: QueueName  = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName  = QueueName("DEV.QUEUE.3")
 
-  def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
-    consumer.receiveJmsMessage
+  def receiveBodyAsTextOrFail(destinationName: DestinationName, context: JmsContext[IO]): IO[String] =
+    context.receive(destinationName)
       .flatMap(_.asJmsTextMessage)
       .flatMap(_.getText)
 
@@ -42,11 +42,12 @@ trait Jms4sBaseSpec {
       .flatMap(_.asJmsTextMessage)
 
   def receiveUntil(
-    consumer: JmsMessageConsumer[IO],
+    destinationName: DestinationName,
+    context: JmsContext[IO],
     received: Ref[IO, Set[String]],
     nMessages: Int
   ): IO[Set[String]] =
-    receiveBodyAsTextOrFail(consumer)
+    receiveBodyAsTextOrFail(destinationName,context)
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)
 
