@@ -1,6 +1,5 @@
 package jms4s
 
-import cats.data._
 import cats.effect.{ Concurrent, ContextShift, Resource }
 import jms4s.config.DestinationName
 import jms4s.jms._
@@ -14,51 +13,19 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   ): Resource[F, JmsTransactedConsumer[F]] =
     JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel)
 
-  def createAcknowledgerConsumer(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    JmsAcknowledgerConsumer.make(connection, inputDestinationName, concurrencyLevel)
-
-  def createAcknowledgerToProducers(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationNames: NonEmptyList[DestinationName],
-    concurrencyLevel: Int
-  ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    JmsAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationNames, concurrencyLevel)
-
-  def createAcknowledgerToProducer(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    JmsAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
-
   def createAutoAcknowledgerConsumer(
-    connection: JmsConnection[F],
+    context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, concurrencyLevel)
+    JmsAutoAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel)
 
-  def createAutoAcknowledgerToProducers(
-    connection: JmsConnection[F],
+  def createAcknowledgerConsumer(
+    context: JmsContext[F],
     inputDestinationName: DestinationName,
-    outputDestinationNames: NonEmptyList[DestinationName],
     concurrencyLevel: Int
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationNames, concurrencyLevel)
-
-  def createAutoAcknowledgerToProducer(
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    JmsAutoAcknowledgerConsumer.make(connection, inputDestinationName, outputDestinationName, concurrencyLevel)
+  ): Resource[F, JmsAcknowledgerConsumer[F]] =
+    JmsAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel)
 
   def createProducer(
     connection: JmsConnection[F],

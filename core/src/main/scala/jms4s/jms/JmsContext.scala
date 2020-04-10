@@ -11,7 +11,10 @@ import jms4s.model.SessionType2
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsContext[F[_]: Sync: Logger: ContextShift](private val context: JMSContext, blocker: Blocker) {
+class JmsContext[F[_]: Sync: Logger: ContextShift](
+  private val context: JMSContext,
+  private[jms4s] val blocker: Blocker
+) {
 
   def createContext(sessionType: SessionType2): Resource[F, JmsContext[F]] =
     Resource
