@@ -28,16 +28,9 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
     JmsAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel)
 
   def createProducer(
-    connection: JmsConnection[F],
-    destinationName: DestinationName,
+    context: JmsContext[F],
     concurrencyLevel: Int
   ): Resource[F, JmsPooledProducer[F]] =
-    JmsPooledProducer.make(connection, destinationName, concurrencyLevel)
-
-  def createProducer(
-    connection: JmsConnection[F],
-    concurrencyLevel: Int
-  ): Resource[F, JmsUnidentifiedPooledProducer[F]] =
-    JmsUnidentifiedPooledProducer.make(connection, concurrencyLevel)
+    JmsPooledProducer.make(context, concurrencyLevel)
 
 }

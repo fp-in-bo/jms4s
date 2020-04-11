@@ -6,48 +6,36 @@ import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ IO, Resource, Timer }
 import cats.implicits._
 import jms4s.basespec.Jms4sBaseSpec
-import jms4s.model.SessionType.AutoAcknowledge
+import jms4s.model.SessionType2
 import org.scalatest.freespec.AsyncFreeSpec
 
 import scala.concurrent.duration._
 
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
-  val queueRes = for {
-    connection    <- connectionRes
-    session       <- connection.createSession(AutoAcknowledge)
-    queue         <- Resource.liftF(session.createQueue(inputQueueName))
-    queueConsumer <- connection.createSession(AutoAcknowledge).flatMap(_.createConsumer(queue))
-    queueProducer <- connection.createSession(AutoAcknowledge).flatMap(_.createProducer(queue))
-    msg           <- Resource.liftF(session.createTextMessage(body))
-  } yield (queueConsumer, queueProducer, msg)
-
-  val topicRes = for {
-    connection    <- connectionRes
-    session       <- connection.createSession(AutoAcknowledge)
-    topic         <- Resource.liftF(session.createTopic(topicName))
-    topicConsumer <- connection.createSession(AutoAcknowledge).flatMap(_.createConsumer(topic))
-    topicProducer <- connection.createSession(AutoAcknowledge).flatMap(_.createProducer(topic))
-    msg           <- Resource.liftF(session.createTextMessage(body))
-  } yield (topicConsumer, topicProducer, msg)
+  private val contexts = for {
+    context        <- contextRes
+    receiveContext <- context.createContext(SessionType2.AutoAcknowledge)
+    sendContext    <- context.createContext(SessionType2.AutoAcknowledge)
+    msg            <- Resource.liftF(context.createTextMessage(body))
+  } yield (receiveContext, sendContext, msg)
 
   "publish to a queue and then receive" in {
-    queueRes.use {
-      case (queueConsumer, queueProducer, msg) =>
+    contexts.use {
+      case (receiveContext, sendContext, msg) =>
         for {
-          _    <- queueProducer.send(msg)
-          text <- receiveBodyAsTextOrFail(queueConsumer)
+          _    <- sendContext.send(inputQueueName, msg)
+          text <- receiveBodyAsTextOrFail(inputQueueName, receiveContext)
         } yield assert(text == body)
     }
   }
   "publish and then receive with a delay" in {
-    queueRes.use {
-      case (consumer, producer, msg) =>
+    contexts.use {
+      case (receiveContext, sendContext, msg) =>
         for {
           producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
-          _                 <- producer.setDeliveryDelay(delay)
-          _                 <- producer.send(msg)
-          msg               <- consumer.receiveJmsMessage
+          _                 <- sendContext.send(inputQueueName, msg, delay)
+          msg               <- receiveContext.receive(inputQueueName)
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
           tm                <- msg.asJmsTextMessage
           actualBody        <- tm.getText
@@ -56,11 +44,11 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
   }
   "publish to a topic and then receive" in {
-    topicRes.use {
-      case (topicConsumer, topicProducer, msg) =>
+    contexts.use {
+      case (receiveContext, sendContext, msg) =>
         for {
-          _   <- (IO.delay(10.millis) >> topicProducer.send(msg)).start
-          rec <- receiveBodyAsTextOrFail(topicConsumer)
+          _   <- (IO.delay(10.millis) >> sendContext.send(topicName1, msg)).start
+          rec <- receiveBodyAsTextOrFail(topicName1, receiveContext)
         } yield assert(rec == body)
     }
   }

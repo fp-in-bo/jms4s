@@ -1,113 +1,94 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.implicits._
 import fs2.concurrent.Queue
 import jms4s.config.DestinationName
 import jms4s.jms._
-import cats.implicits._
-import jms4s.model.SessionType.AutoAcknowledge
+import jms4s.model.SessionType2
 
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.duration._
 
 trait JmsPooledProducer[F[_]] {
 
   def sendN(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F])]]
+    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
   ): F[Unit]
 
   def sendNWithDelay(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], Option[FiniteDuration])]]
+    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
   ): F[Unit]
 
   def sendWithDelay(
-    messageFactory: MessageFactory[F] => F[(JmsMessage[F], Option[FiniteDuration])]
+    messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
   ): F[Unit]
 
-  def send(messageFactory: MessageFactory[F] => F[JmsMessage[F]]): F[Unit]
+  def send(messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
 
 }
 
 object JmsPooledProducer {
 
   private[jms4s] def make[F[_]: ContextShift: Concurrent](
-    connection: JmsConnection[F],
-    queue: DestinationName,
+    context: JmsContext[F],
     concurrencyLevel: Int
   ): Resource[F, JmsPooledProducer[F]] =
     for {
       pool <- Resource.liftF(
-               Queue.bounded[F, JmsResource[F]](concurrencyLevel)
+               Queue.bounded[F, JmsContext[F]](concurrencyLevel)
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session     <- connection.createSession(AutoAcknowledge)
-              destination <- Resource.liftF(session.createDestination(queue))
-              producer    <- session.createProducer(destination)
-              _           <- Resource.liftF(pool.enqueue1(JmsResource(session, producer, new MessageFactory(session))))
+              c <- context.createContext(SessionType2.AutoAcknowledge)
+              _ <- Resource.liftF(pool.enqueue1(c))
             } yield ()
           }
     } yield new JmsPooledProducer[F] {
       override def sendN(
-        f: MessageFactory[F] => F[NonEmptyList[JmsMessage[F]]]
+        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
       ): F[Unit] =
         for {
-          resources <- pool.dequeue1
-          messages  <- f(resources.messageFactory)
-          _         <- messages.traverse_(message => resources.producer.send(message))
-          _         <- pool.enqueue1(resources)
+          ctx                      <- pool.dequeue1
+          messagesWithDestinations <- f(new MessageFactory2[F](ctx))
+          _ <- messagesWithDestinations.traverse_ {
+                case (message, destinationName) =>
+                  for {
+                    _ <- ctx.send(destinationName, message)
+                  } yield ()
+              }
+          _ <- pool.enqueue1(ctx)
         } yield ()
 
       override def sendNWithDelay(
-        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], Option[FiniteDuration])]]
+        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
       ): F[Unit] =
         for {
-          resources      <- pool.dequeue1
-          messagesDelays <- f(resources.messageFactory)
-          _ <- messagesDelays.traverse_(
-                messageWithDelay =>
-                  for {
-                    _ <- messageWithDelay._2 match {
-                          case Some(delay) => resources.producer.setDeliveryDelay(delay)
-                          case None        => Sync[F].unit
-                        }
-                    _ <- resources.producer.send(messageWithDelay._1)
-                    _ <- resources.producer.setDeliveryDelay(0.millis)
-                  } yield ()
-              )
-          _ <- pool.enqueue1(resources)
+          ctx                                <- pool.dequeue1
+          messagesWithDestinationsAndDelayes <- f(new MessageFactory2[F](ctx))
+          _ <- messagesWithDestinationsAndDelayes.traverse_ {
+                case (message, (destinatioName, duration)) =>
+                  duration.fold(ctx.send(destinatioName, message))(delay => ctx.send(destinatioName, message, delay))
+              }
+          _ <- pool.enqueue1(ctx)
         } yield ()
 
       override def sendWithDelay(
-        f: MessageFactory[F] => F[(JmsMessage[F], Option[FiniteDuration])]
+        f: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
       ): F[Unit] =
         for {
-          resources         <- pool.dequeue1
-          messagesWithDelay <- f(resources.messageFactory)
-          _ <- messagesWithDelay._2 match {
-                case Some(delay) => resources.producer.setDeliveryDelay(delay)
-                case None        => Sync[F].unit
-              }
-          _ <- resources.producer.send(messagesWithDelay._1)
-          _ <- resources.producer.setDeliveryDelay(0.millis)
-          _ <- pool.enqueue1(resources)
-
+          ctx                                 <- pool.dequeue1
+          (message, (destinationName, delay)) <- f(new MessageFactory2[F](ctx))
+          _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
+          _                                   <- pool.enqueue1(ctx)
         } yield ()
 
-      override def send(f: MessageFactory[F] => F[JmsMessage[F]]): F[Unit] =
+      override def send(f: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit] =
         for {
-          resources <- pool.dequeue1
-          message   <- f(resources.messageFactory)
-          _         <- resources.producer.send(message)
-          _         <- pool.enqueue1(resources)
+          ctx                    <- pool.dequeue1
+          (message, destination) <- f(new MessageFactory2[F](ctx))
+          _                      <- ctx.send(destination, message)
+          _                      <- pool.enqueue1(ctx)
         } yield ()
     }
-
-  case class JmsResource[F[_]] private[jms4s] (
-    session: JmsSession[F],
-    producer: JmsMessageProducer[F],
-    messageFactory: MessageFactory[F]
-  )
-
 }
