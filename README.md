@@ -24,11 +24,12 @@ Support at the very least the following features:
 ## Quick Start
 
 To use jms4s in an existing SBT project with Scala 2.12 or a later version, add the following dependencies to your
-`build.sbt` depending on your needs:
+`build.sbt` depending on your provider:
 
 ```scala
 libraryDependencies ++= Seq(
-  "dev.fpinbo" %% "jms4s" % "<version>"
+  "dev.fpinbo" %% "jms4s-active-mq-artemis" % "<version>", // if your provider is activemq-artemis
+  "dev.fpinbo" %% "jms4s-ibm-mq"            % "<version>"  // if your provider is ibmmq
 )
 ```
 
