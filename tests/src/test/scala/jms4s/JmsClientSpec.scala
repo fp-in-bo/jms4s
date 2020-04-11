@@ -12,7 +12,6 @@ import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
-
 import scala.concurrent.duration._
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
@@ -23,7 +22,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       context     <- contextRes
       consumer    <- jmsClient.createTransactedConsumer(context, inputQueueName, poolSize)
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages    <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
+      messages    <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
     } yield (consumer, sendContext, bodies.toSet, messages)
 
     res.use {
@@ -40,7 +39,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                             } yield TransactionAction.commit
                           }.start
           _ <- logger.info(s"Consumer started. Collecting messages from the queue...")
-          receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)).timeout(timeout) >> received.get)
+          receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)) >> received.get)
                                .guarantee(consumerFiber.cancel)
         } yield assert(receivedMessages == bodies)
     }
@@ -55,14 +54,14 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                    inputQueueName,
                    poolSize
                  )
-      sendContext      <- context.createContext(SessionType.AutoAcknowledge)
-      messages         <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
-      consumerContext1 <- context.createContext(SessionType.AutoAcknowledge)
-      consumerContext2 <- context.createContext(SessionType.AutoAcknowledge)
-    } yield (consumer, sendContext, consumerContext1, consumerContext2, bodies.toSet, messages)
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      messages    <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
+      consumer1   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      consumer2   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName2))
+    } yield (consumer, sendContext, consumer1, consumer2, bodies.toSet, messages)
 
     res.use {
-      case (consumer, sendContext, consumerContext1, consumerContext2, bodies, messages) =>
+      case (consumer, sendContext, consumer1, consumer2, bodies, messages) =>
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
@@ -80,8 +79,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received1 <- Ref.of[IO, Set[String]](Set())
           received2 <- Ref.of[IO, Set[String]](Set())
           receivedMessages <- ((
-                               receiveUntil(outputQueueName1, consumerContext1, received1, nMessages / 2),
-                               receiveUntil(outputQueueName2, consumerContext2, received2, nMessages / 2)
+                               receiveUntil(consumer1, received1, nMessages / 2),
+                               receiveUntil(consumer2, received2, nMessages / 2)
                              ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
@@ -95,7 +94,6 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       consumer    <- jmsClient.createAcknowledgerConsumer(context, inputQueueName, poolSize)
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
       messages    <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
-
     } yield (consumer, sendContext, bodies.toSet, messages)
 
     res.use {
@@ -108,6 +106,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                             for {
                               tm   <- message.asJmsTextMessage
                               body <- tm.getText
+                              _    <- logger.info(body)
                               _    <- received.update(_ + body)
                             } yield AckAction.ack
                           }.start
@@ -127,14 +126,14 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                    inputQueueName,
                    poolSize
                  )
-      sendContext      <- context.createContext(SessionType.AutoAcknowledge)
-      messages         <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
-      consumerContext1 <- context.createContext(SessionType.AutoAcknowledge)
-      consumerContext2 <- context.createContext(SessionType.AutoAcknowledge)
-    } yield (consumer, sendContext, consumerContext1, consumerContext2, bodies.toSet, messages)
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      messages    <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
+      consumer1   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      consumer2   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName2))
+    } yield (consumer, sendContext, consumer1, consumer2, bodies.toSet, messages)
 
     res.use {
-      case (consumer, sendContext, consumerContext1, consumerContext2, bodies, messages) =>
+      case (consumer, sendContext, consumer1, consumer2, bodies, messages) =>
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
@@ -152,8 +151,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received1 <- Ref.of[IO, Set[String]](Set())
           received2 <- Ref.of[IO, Set[String]](Set())
           receivedMessages <- ((
-                               receiveUntil(outputQueueName1, consumerContext1, received1, nMessages / 2),
-                               receiveUntil(outputQueueName2, consumerContext2, received2, nMessages / 2)
+                               receiveUntil(consumer1, received1, nMessages / 2),
+                               receiveUntil(consumer2, received2, nMessages / 2)
                              ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
@@ -198,15 +197,15 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                    inputQueueName,
                    poolSize
                  )
-      sendContext      <- context.createContext(SessionType.AutoAcknowledge)
-      messages         <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
-      consumerContext1 <- context.createContext(SessionType.AutoAcknowledge)
-      consumerContext2 <- context.createContext(SessionType.AutoAcknowledge)
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      messages    <- Resource.liftF(bodies.traverse(i => sendContext.createTextMessage(i)))
+      consumer1   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      consumer2   <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName2))
 
-    } yield (consumer, sendContext, consumerContext1, consumerContext2, bodies.toSet, messages)
+    } yield (consumer, sendContext, consumer1, consumer2, bodies.toSet, messages)
 
     res.use {
-      case (consumer, sendContext, consumerContext1, consumerContext2, bodies, messages) =>
+      case (consumer, sendContext, consumer1, consumer2, bodies, messages) =>
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
@@ -223,8 +222,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received1 <- Ref.of[IO, Set[String]](Set())
           received2 <- Ref.of[IO, Set[String]](Set())
           receivedMessages <- ((
-                               receiveUntil(outputQueueName1, consumerContext1, received1, nMessages / 2),
-                               receiveUntil(outputQueueName2, consumerContext2, received2, nMessages / 2)
+                               receiveUntil(consumer1, received1, nMessages / 2),
+                               receiveUntil(consumer2, received2, nMessages / 2)
                              ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
@@ -234,20 +233,20 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"send $nMessages messages in a Queue with pooled producer and consume them" in {
 
     val res = for {
-      context        <- contextRes
-      receiveContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages       <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer       <- jmsClient.createProducer(context, poolSize)
-    } yield (producer, receiveContext, bodies.toSet, messages)
+      context  <- contextRes
+      consumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      messages <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer <- jmsClient.createProducer(context, poolSize)
+    } yield (producer, consumer, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext, bodies, messages) =>
+      case (producer, consumer, bodies, messages) =>
         for {
           _                <- messages.parTraverse_(msg => producer.send(messageFactory(msg, outputQueueName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
           received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(outputQueueName1, receiveContext, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -255,20 +254,20 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"sendN $nMessages messages in a Queue with pooled producer and consume them" in {
 
     val res = for {
-      context        <- contextRes
-      receiveContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages       <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer       <- jmsClient.createProducer(context, poolSize)
-    } yield (producer, receiveContext, bodies.toSet, messages)
+      context  <- contextRes
+      consumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      messages <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer <- jmsClient.createProducer(context, poolSize)
+    } yield (producer, consumer, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext, bodies, messages) =>
+      case (producer, consumer, bodies, messages) =>
         for {
           _                <- messages.toNel.traverse_(msg => producer.sendN(messageFactory(msg, outputQueueName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
           received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(outputQueueName1, receiveContext, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -276,20 +275,20 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"send $nMessages messages in a Topic with pooled producer and consume them" in {
 
     val res = for {
-      context        <- contextRes
-      receiveContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages       <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer       <- jmsClient.createProducer(context, poolSize)
-    } yield (producer, receiveContext, bodies.toSet, messages)
+      context  <- contextRes
+      consumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(topicName1))
+      messages <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer <- jmsClient.createProducer(context, poolSize)
+    } yield (producer, consumer, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext, bodies, messages) =>
+      case (producer, consumer, bodies, messages) =>
         for {
           _                <- messages.parTraverse_(msg => producer.send(messageFactory(msg, topicName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
           received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(topicName1, receiveContext, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -297,20 +296,20 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"sendN $nMessages messages in a Topic with pooled producer and consume them" in {
 
     val res = for {
-      context        <- contextRes
-      receiveContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages       <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer       <- jmsClient.createProducer(context, poolSize)
-    } yield (producer, receiveContext, bodies.toSet, messages)
+      context  <- contextRes
+      consumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(topicName1))
+      messages <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer <- jmsClient.createProducer(context, poolSize)
+    } yield (producer, consumer, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext, bodies, messages) =>
+      case (producer, consumer, bodies, messages) =>
         for {
           _                <- messages.toNel.fold(IO.unit)(ms => producer.sendN(messageFactory(ms, topicName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
           received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(topicName1, receiveContext, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -318,17 +317,15 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"send $nMessages messages in two Queues with pooled producer and consume them" in {
 
     val res = for {
-
-      context         <- contextRes
-      messages        <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer        <- jmsClient.createProducer(context, poolSize)
-      receiveContext1 <- context.createContext(SessionType.AutoAcknowledge)
-      receiveContext2 <- context.createContext(SessionType.AutoAcknowledge)
-
-    } yield (producer, receiveContext1, receiveContext2, bodies.toSet, messages)
+      context   <- contextRes
+      messages  <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer  <- jmsClient.createProducer(context, poolSize)
+      consumer1 <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      consumer2 <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName2))
+    } yield (producer, consumer1, consumer2, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext1, receiveContext2, bodies, messages) =>
+      case (producer, consumer1, consumer2, bodies, messages) =>
         for {
           _ <- messages.parTraverse_(
                 msg =>
@@ -339,9 +336,9 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                  <- logger.info(s"Pushed ${messages.size} messages.")
           _                  <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           firstBatch         <- Ref.of[IO, Set[String]](Set())
-          firstBatchMessages <- receiveUntil(outputQueueName1, receiveContext1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
+          firstBatchMessages <- receiveUntil(consumer1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
           secondBatch        <- Ref.of[IO, Set[String]](Set())
-          secondBatchMessages <- receiveUntil(outputQueueName2, receiveContext2, secondBatch, nMessages).timeout(
+          secondBatchMessages <- receiveUntil(consumer2, secondBatch, nMessages).timeout(
                                   timeout
                                 ) >> secondBatch.get
         } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
@@ -351,15 +348,15 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   s"send $nMessages messages in two Topics with pooled producer and consume them" in {
 
     val res = for {
-      context         <- contextRes
-      messages        <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
-      producer        <- jmsClient.createProducer(context, poolSize)
-      receiveContext1 <- context.createContext(SessionType.AutoAcknowledge)
-      receiveContext2 <- context.createContext(SessionType.AutoAcknowledge)
-    } yield (producer, receiveContext1, receiveContext2, bodies.toSet, messages)
+      context   <- contextRes
+      messages  <- Resource.liftF(bodies.traverse(i => context.createTextMessage(i)))
+      producer  <- jmsClient.createProducer(context, poolSize)
+      consumer1 <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(topicName1))
+      consumer2 <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(topicName2))
+    } yield (producer, consumer1, consumer2, bodies.toSet, messages)
 
     res.use {
-      case (producer, receiveContext1, receiveContext2, bodies, messages) =>
+      case (producer, consumer1, consumer2, bodies, messages) =>
         for {
           _ <- messages.parTraverse_(
                 msg => producer.send(messageFactory(msg, topicName1)) *> producer.send(messageFactory(msg, topicName2))
@@ -367,29 +364,29 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                   <- logger.info(s"Pushed ${messages.size} messages.")
           _                   <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           firstBatch          <- Ref.of[IO, Set[String]](Set())
-          firstBatchMessages  <- receiveUntil(topicName1, receiveContext1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
+          firstBatchMessages  <- receiveUntil(consumer1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
           secondBatch         <- Ref.of[IO, Set[String]](Set())
-          secondBatchMessages <- receiveUntil(topicName2, receiveContext2, secondBatch, nMessages).timeout(timeout) >> secondBatch.get
+          secondBatchMessages <- receiveUntil(consumer2, secondBatch, nMessages).timeout(timeout) >> secondBatch.get
         } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
     }
   }
 
   s"sendN $nMessages messages with delay in a Queue with pooled producer and consume them" in {
     val res = for {
-      context        <- contextRes
-      receiveContext <- context.createContext(SessionType.AutoAcknowledge)
-      message        <- Resource.liftF(context.createTextMessage(body))
-      producer       <- jmsClient.createProducer(context, poolSize)
-    } yield (producer, receiveContext, message)
+      context  <- contextRes
+      consumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(outputQueueName1))
+      message  <- Resource.liftF(context.createTextMessage(body))
+      producer <- jmsClient.createProducer(context, poolSize)
+    } yield (producer, consumer, message)
 
     res.use {
-      case (producer, receiveContext, message) =>
+      case (producer, consumer, message) =>
         for {
           producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
           _                 <- producer.sendWithDelay(messageWithDelayFactory((message, (outputQueueName1, Some(delay)))))
           _                 <- logger.info(s"Pushed message with body: $body.")
           _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
-          receivedMessage   <- receiveMessage(outputQueueName1, receiveContext).timeout(timeout)
+          receivedMessage   <- receiveMessage(consumer).timeout(timeout)
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
           actualBody        <- receivedMessage.getText
           actualDelay       = (deliveryTime - producerTimestamp).millis

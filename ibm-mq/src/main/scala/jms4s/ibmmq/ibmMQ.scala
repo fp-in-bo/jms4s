@@ -1,7 +1,7 @@
 package jms4s.ibmmq
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, ContextShift, Resource, Sync }
+import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
@@ -25,7 +25,7 @@ object ibmMQ {
   case class Channel(value: String)      extends AnyVal
   case class ClientId(value: String)     extends AnyVal
 
-  def makeContext[F[_]: Sync: Logger: ContextShift](
+  def makeContext[F[_]: Sync: Logger: ContextShift: Concurrent](
     config: Config,
     blocker: Blocker
   ): Resource[F, JmsContext[F]] =

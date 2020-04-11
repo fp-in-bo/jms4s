@@ -2,13 +2,13 @@ package jms4s.basespec
 
 import cats.data.NonEmptyList
 import cats.effect.concurrent.Ref
-import cats.effect.{ ContextShift, IO, Resource }
+import cats.effect.{ Concurrent, ContextShift, IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsContext, MessageFactory }
+import jms4s.jms.{ JmsContext, JmsMessageConsumer, MessageFactory }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
@@ -30,24 +30,21 @@ trait Jms4sBaseSpec {
   val outputQueueName1: QueueName  = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName  = QueueName("DEV.QUEUE.3")
 
-  def receiveBodyAsTextOrFail(destinationName: DestinationName, context: JmsContext[IO]): IO[String] =
-    context
-      .receive(destinationName)
+  def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
+    consumer.receiveJmsMessage
       .flatMap(_.asJmsTextMessage)
       .flatMap(_.getText)
 
-  def receiveMessage(destinationName: DestinationName, context: JmsContext[IO]): IO[JmsTextMessage[IO]] =
-    context
-      .receive(destinationName)
+  def receiveMessage(consumer: JmsMessageConsumer[IO]): IO[JmsTextMessage[IO]] =
+    consumer.receiveJmsMessage
       .flatMap(_.asJmsTextMessage)
 
   def receiveUntil(
-    destinationName: DestinationName,
-    context: JmsContext[IO],
+    consumer: JmsMessageConsumer[IO],
     received: Ref[IO, Set[String]],
     nMessages: Int
-  ): IO[Set[String]] =
-    receiveBodyAsTextOrFail(destinationName, context)
+  )(implicit F: Concurrent[IO]): IO[Set[String]] =
+    receiveBodyAsTextOrFail(consumer)
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)
 

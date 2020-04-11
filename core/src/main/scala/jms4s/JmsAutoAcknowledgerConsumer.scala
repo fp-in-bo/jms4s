@@ -25,18 +25,18 @@ object JmsAutoAcknowledgerConsumer {
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     for {
-      pool <- Resource.liftF(Queue.bounded[F, JmsContext[F]](concurrencyLevel))
+      pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              ctx <- context.createContext(SessionType.AutoAcknowledge)
-              _   <- Resource.liftF(pool.enqueue1(ctx))
+              ctx      <- context.createContext(SessionType.AutoAcknowledge)
+              consumer <- ctx.createJmsConsumer(inputDestinationName)
+              _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
             } yield ()
           }
-    } yield build(inputDestinationName, pool, concurrencyLevel, context.blocker)
+    } yield build(pool, concurrencyLevel, context.blocker)
 
   private def build[F[_]: ContextShift: Concurrent](
-    destinationName: DestinationName,
-    pool: Queue[F, JmsContext[F]],
+    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
     concurrencyLevel: Int,
     blocker: Blocker
   ): JmsAutoAcknowledgerConsumer[F] =
@@ -46,9 +46,9 @@ object JmsAutoAcknowledgerConsumer {
         .as(
           Stream.eval(
             for {
-              context <- pool.dequeue1
-              message <- context.receive(destinationName)
-              res     <- f(message)
+              (context, consumer) <- pool.dequeue1
+              message             <- consumer.receiveJmsMessage
+              res                 <- f(message)
               _ <- res.fold(
                     ifNoOp = Sync[F].unit,
                     ifSend = send =>
@@ -68,7 +68,7 @@ object JmsAutoAcknowledgerConsumer {
                           )
                       )
                   )
-              _ <- pool.enqueue1(context)
+              _ <- pool.enqueue1((context, consumer))
             } yield ()
           )
         )

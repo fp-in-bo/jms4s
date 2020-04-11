@@ -6,6 +6,7 @@ import cats.effect.{ Concurrent, ContextShift, Resource }
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
+import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.Received
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms._
@@ -25,21 +26,21 @@ object JmsTransactedConsumer {
     concurrencyLevel: Int
   ): Resource[F, JmsTransactedConsumer[F]] =
     for {
-      pool <- Resource.liftF(Queue.bounded[F, JmsContext[F]](concurrencyLevel))
+      pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList
             .traverse_(
               _ =>
                 for {
-                  c <- context.createContext(SessionType.Transacted)
-                  _ <- Resource.liftF(pool.enqueue1(c))
+                  c        <- context.createContext(SessionType.Transacted)
+                  consumer <- c.createJmsConsumer(inputDestinationName)
+                  _        <- Resource.liftF(pool.enqueue1((c, consumer)))
                 } yield ()
             )
-    } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel, inputDestinationName)
+    } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel)
 
   private def build[F[_]: ContextShift: Concurrent](
     pool: JmsTransactedConsumerPool[F],
-    concurrencyLevel: Int,
-    destinationName: DestinationName
+    concurrencyLevel: Int
   ): JmsTransactedConsumer[F] =
     (f: JmsMessage[F] => F[TransactionAction[F]]) =>
       Stream
@@ -47,23 +48,23 @@ object JmsTransactedConsumer {
         .as(
           Stream.eval(
             fo = for {
-              (message, context) <- pool.receive(destinationName)
-              tResult            <- f(message)
+              received <- pool.receive
+              tResult  <- f(received.message)
               _ <- tResult.fold(
-                    pool.commit(context),
-                    pool.rollback(context),
-                    send => {
+                    ifCommit = pool.commit(received.context, received.consumer),
+                    ifRollback = pool.rollback(received.context, received.consumer),
+                    ifSend = send => {
                       val createMessages: MessageFactory[F] => F[TransactionAction.ToSend[F]] = send.createMessages
-                      createMessages(new MessageFactory[F](context))
+                      createMessages(new MessageFactory[F](received.context))
                         .flatMap(
                           toSend =>
                             toSend.messagesAndDestinations.traverse_ {
                               case (message, (name, delay)) =>
                                 delay.fold(
-                                  context.send(name, message)
+                                  received.context.send(name, message)
                                 )(
-                                  d => context.send(name, message, d)
-                                ) *> pool.commit(context)
+                                  d => received.context.send(name, message, d)
+                                ) *> pool.commit(received.context, received.consumer)
                             }
                         )
                     }
@@ -76,25 +77,31 @@ object JmsTransactedConsumer {
         .compile
         .drain
 
-  private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent: ContextShift](pool: Queue[F, JmsContext[F]]) {
+  private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent: ContextShift](
+    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])]
+  ) {
 
-    def receive(destinationName: DestinationName): F[(JmsMessage[F], JmsContext[F])] =
+    def receive: F[Received[F]] =
       for {
-        context <- pool.dequeue1
-        message <- context.receive(destinationName)
-      } yield (message, context)
+        (context, consumer) <- pool.dequeue1
+        message             <- consumer.receiveJmsMessage
+      } yield Received(message, context, consumer)
 
-    def commit(context: JmsContext[F]): F[Unit] =
+    def commit(context: JmsContext[F], consumer: JmsMessageConsumer[F]): F[Unit] =
       for {
         _ <- context.commit
-        _ <- pool.enqueue1(context)
+        _ <- pool.enqueue1((context, consumer))
       } yield ()
 
-    def rollback(context: JmsContext[F]): F[Unit] =
+    def rollback(context: JmsContext[F], consumer: JmsMessageConsumer[F]): F[Unit] =
       for {
         _ <- context.rollback
-        _ <- pool.enqueue1(context)
+        _ <- pool.enqueue1((context, consumer))
       } yield ()
+  }
+
+  object JmsTransactedConsumerPool {
+    case class Received[F[_]](message: JmsMessage[F], context: JmsContext[F], consumer: JmsMessageConsumer[F])
   }
 
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {

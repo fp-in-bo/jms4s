@@ -1,6 +1,6 @@
 package jms4s.jms
 
-import cats.effect.{ Blocker, ContextShift, Resource, Sync }
+import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.JMSContext
@@ -11,7 +11,7 @@ import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsContext[F[_]: Sync: Logger: ContextShift](
+class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
   private val context: JMSContext,
   private[jms4s] val blocker: Blocker
 ) {
@@ -31,7 +31,9 @@ class JmsContext[F[_]: Sync: Logger: ContextShift](
   def send(destinationName: DestinationName, message: JmsMessage[F]): F[Unit] =
     createDestination(destinationName)
       .flatMap(
-        destination => blocker.delay(context.createProducer().send(destination.wrapped, message.wrapped))
+        destination =>
+          Logger[F].info(s"Sending to $destinationName") *>
+            blocker.delay(context.createProducer().send(destination.wrapped, message.wrapped))
       )
       .map(_ => ())
 
@@ -43,20 +45,23 @@ class JmsContext[F[_]: Sync: Logger: ContextShift](
       _           <- blocker.delay(p.send(destination.wrapped, message.wrapped))
     } yield ()
 
-  def receive(destinationName: DestinationName): F[JmsMessage[F]] =
-    createDestination(destinationName).flatMap(
-      destination =>
-        blocker
-          .delay(
-            context.createConsumer(destination.wrapped).receive()
-          )
-          .map(m => new JmsMessage[F](m))
-    )
+  def createJmsConsumer(destinationName: DestinationName): Resource[F, JmsMessageConsumer[F]] =
+    for {
+      destination <- Resource.liftF(createDestination(destinationName))
+      consumer <- Resource.make(
+                   Logger[F].info(s"Creating consumer for destination $destinationName") *>
+                     blocker.delay(context.createConsumer(destination.wrapped))
+                 )(
+                   consumer =>
+                     Logger[F].info(s"Closing consumer for destination $destinationName") *>
+                       blocker.delay(consumer.close())
+                 )
+    } yield new JmsMessageConsumer[F](consumer)
 
   def createTextMessage(value: String): F[JmsTextMessage[F]] =
     Sync[F].delay(new JmsTextMessage(context.createTextMessage(value)))
 
-  def commit: F[Unit] = blocker.delay(context.commit())
+  def commit: F[Unit] = blocker.delay(context.commit()) *> Logger[F].info(s"Committed context $context")
 
   def rollback: F[Unit] = blocker.delay(context.rollback())
 
@@ -66,7 +71,7 @@ class JmsContext[F[_]: Sync: Logger: ContextShift](
   private def createTopic(topicName: TopicName): F[JmsTopic] =
     Sync[F].delay(new JmsTopic(context.createTopic(topicName.value)))
 
-  private def createDestination(destination: DestinationName): F[JmsDestination] = destination match {
+  def createDestination(destination: DestinationName): F[JmsDestination] = destination match {
     case q: QueueName => createQueue(q).widen[JmsDestination]
     case t: TopicName => createTopic(t).widen[JmsDestination]
   }
