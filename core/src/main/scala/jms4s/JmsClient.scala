@@ -30,7 +30,7 @@ class JmsClient[F[_]: ContextShift: Concurrent] {
   def createProducer(
     context: JmsContext[F],
     concurrencyLevel: Int
-  ): Resource[F, JmsPooledProducer[F]] =
-    JmsPooledProducer.make(context, concurrencyLevel)
+  ): Resource[F, JmsProducer[F]] =
+    JmsProducer.make(context, concurrencyLevel)
 
 }

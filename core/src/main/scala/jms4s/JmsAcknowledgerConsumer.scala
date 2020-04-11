@@ -9,7 +9,7 @@ import fs2.concurrent.Queue
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType2
+import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -28,7 +28,7 @@ object JmsAcknowledgerConsumer {
       pool <- Resource.liftF(Queue.bounded[F, JmsContext[F]](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              ctx <- context.createContext(SessionType2.ClientAcknowledge)
+              ctx <- context.createContext(SessionType.ClientAcknowledge)
               _   <- Resource.liftF(pool.enqueue1(ctx))
             } yield ()
           }
@@ -55,7 +55,7 @@ object JmsAcknowledgerConsumer {
                     ifSend = send =>
                       blocker.blockOn(
                         send
-                          .createMessages(new MessageFactory2[F](context))
+                          .createMessages(new MessageFactory[F](context))
                           .flatMap(
                             toSend =>
                               toSend.messagesAndDestinations.traverse_ {

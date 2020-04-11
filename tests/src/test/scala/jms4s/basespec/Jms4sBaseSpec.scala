@@ -8,14 +8,12 @@ import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsConnection, JmsContext, MessageFactory }
+import jms4s.jms.{ JmsContext, MessageFactory }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-
-  def connectionRes(implicit cs: ContextShift[IO]): Resource[IO, JmsConnection[IO]]
 
   def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]]
 

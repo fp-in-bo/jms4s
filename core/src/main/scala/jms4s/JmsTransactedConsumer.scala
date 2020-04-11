@@ -9,7 +9,7 @@ import fs2.concurrent.Queue
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType2
+import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -30,7 +30,7 @@ object JmsTransactedConsumer {
             .traverse_(
               _ =>
                 for {
-                  c <- context.createContext(SessionType2.Transacted)
+                  c <- context.createContext(SessionType.Transacted)
                   _ <- Resource.liftF(pool.enqueue1(c))
                 } yield ()
             )
@@ -54,7 +54,7 @@ object JmsTransactedConsumer {
                     pool.rollback(context),
                     send => {
                       val createMessages: MessageFactory[F] => F[TransactionAction.ToSend[F]] = send.createMessages
-                      createMessages(new MessageFactory2[F](context))
+                      createMessages(new MessageFactory[F](context))
                         .flatMap(
                           toSend =>
                             toSend.messagesAndDestinations.traverse_ {

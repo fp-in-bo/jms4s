@@ -7,7 +7,7 @@ import javax.jms.JMSContext
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.model.SessionType2
+import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -16,7 +16,7 @@ class JmsContext[F[_]: Sync: Logger: ContextShift](
   private[jms4s] val blocker: Blocker
 ) {
 
-  def createContext(sessionType: SessionType2): Resource[F, JmsContext[F]] =
+  def createContext(sessionType: SessionType): Resource[F, JmsContext[F]] =
     Resource
       .make(
         Logger[F].info("Creating context") *>
