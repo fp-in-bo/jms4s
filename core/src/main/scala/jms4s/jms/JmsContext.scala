@@ -19,30 +19,31 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
   def createContext(sessionType: SessionType): Resource[F, JmsContext[F]] =
     Resource
       .make(
-        Logger[F].info("Creating context") *>
-          blocker.delay(context.createContext(sessionType.rawAcknowledgeMode))
+        Logger[F].info("Creating context") *> {
+          for {
+            ctx <- blocker.delay(context.createContext(sessionType.rawAcknowledgeMode))
+            _   <- Logger[F].info(s"Context $ctx successfully created")
+          } yield ctx
+        }
       )(
         context =>
-          Logger[F].info("Releasing context") *>
+          Logger[F].info(s"Releasing context $context") *>
             blocker.delay(context.close())
       )
       .map(context => new JmsContext(context, blocker))
 
   def send(destinationName: DestinationName, message: JmsMessage[F]): F[Unit] =
     createDestination(destinationName)
-      .flatMap(
-        destination =>
-          Logger[F].info(s"Sending to $destinationName") *>
-            blocker.delay(context.createProducer().send(destination.wrapped, message.wrapped))
-      )
+      .flatMap(destination => blocker.delay(context.createProducer().send(destination.wrapped, message.wrapped)))
       .map(_ => ())
 
   def send(destinationName: DestinationName, message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
     for {
       destination <- createDestination(destinationName)
       p           <- Sync[F].delay(context.createProducer())
-      _           <- Sync[F].delay(p.setDeliveryDelay(delay.toMillis))
-      _           <- blocker.delay(p.send(destination.wrapped, message.wrapped))
+      _ <- Sync[F].delay(p.setDeliveryDelay(delay.toMillis)) *> blocker.delay(
+            p.send(destination.wrapped, message.wrapped)
+          )
     } yield ()
 
   def createJmsConsumer(destinationName: DestinationName): Resource[F, JmsMessageConsumer[F]] =
@@ -61,7 +62,7 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
   def createTextMessage(value: String): F[JmsTextMessage[F]] =
     Sync[F].delay(new JmsTextMessage(context.createTextMessage(value)))
 
-  def commit: F[Unit] = blocker.delay(context.commit()) *> Logger[F].info(s"Committed context $context")
+  def commit: F[Unit] = blocker.delay(context.commit())
 
   def rollback: F[Unit] = blocker.delay(context.rollback())
 
