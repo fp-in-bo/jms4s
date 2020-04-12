@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+
+<configuration xmlns="urn:activemq" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:activemq /schema/artemis-configuration.xsd">
+    <!-- from 1.0.0 to 1.5.5 the following line should be : <core xmlns="urn:activemq:core"> -->
+    <core xmlns="urn:activemq:core" xsi:schemaLocation="urn:activemq:core ">
+        <addresses>
+            <address name="DEV.QUEUE.1">
+                <anycast>
+                    <queue name="DEV.QUEUE.1"/>
+                </anycast>
+            </address>
+            <address name="DEV.QUEUE.2">
+                <anycast>
+                    <queue name="DEV.QUEUE.2"/>
+                </anycast>
+            </address>
+            <address name="DEV.QUEUE.3">
+                <anycast>
+                    <queue name="DEV.QUEUE.3"/>
+                </anycast>
+            </address>
+            <address name="DEV.BASE.TOPIC">
+                <multicast/>
+            </address>
+        </addresses>
+    </core>
+</configuration>

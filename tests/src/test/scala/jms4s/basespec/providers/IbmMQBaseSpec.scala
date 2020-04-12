@@ -5,15 +5,16 @@ import cats.effect.{ Blocker, ContextShift, IO, Resource }
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.ibmmq.ibmMQ
 import jms4s.ibmmq.ibmMQ._
-import jms4s.jms.JmsConnection
+import jms4s.jms.JmsContext
 
 trait IbmMQBaseSpec extends Jms4sBaseSpec {
-  override def connectionRes(implicit cs: ContextShift[IO]): Resource[IO, JmsConnection[IO]] =
+
+  override def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
     Blocker
       .apply[IO]
       .flatMap(
         blocker =>
-          ibmMQ.makeConnection[IO](
+          ibmMQ.makeContext[IO](
             Config(
               qm = QueueManager("QM1"),
               endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
