@@ -54,21 +54,19 @@ object JmsAcknowledgerConsumer {
                     ifAck = blocker.delay(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
-                      blocker.blockOn(
-                        send
-                          .createMessages(messageFactory)
-                          .flatMap(
-                            toSend =>
-                              toSend.messagesAndDestinations.traverse_ {
-                                case (message, (name, delay)) =>
-                                  delay.fold(
-                                    ifEmpty = context.send(name, message)
-                                  )(
-                                    f = d => context.send(name, message, d)
-                                  )
-                              } *> Sync[F].delay(message.wrapped.acknowledge())
-                          )
-                      )
+                      send
+                        .createMessages(messageFactory)
+                        .flatMap(
+                          toSend =>
+                            toSend.messagesAndDestinations.traverse_ {
+                              case (message, (name, delay)) =>
+                                delay.fold(
+                                  ifEmpty = context.send(name, message)
+                                )(
+                                  f = d => context.send(name, message, d)
+                                )
+                            } *> blocker.delay(message.wrapped.acknowledge())
+                        )
                   )
               _ <- pool.enqueue1((context, consumer))
             } yield ()

@@ -53,21 +53,19 @@ object JmsAutoAcknowledgerConsumer {
               _ <- res.fold(
                     ifNoOp = Sync[F].unit,
                     ifSend = send =>
-                      blocker.blockOn(
-                        send
-                          .createMessages(messageFactory)
-                          .flatMap(
-                            toSend =>
-                              toSend.messagesAndDestinations.traverse_ {
-                                case (message, (name, delay)) =>
-                                  delay.fold(
-                                    ifEmpty = context.send(name, message)
-                                  )(
-                                    f = d => context.send(name, message, d)
-                                  )
-                              }
-                          )
-                      )
+                      send
+                        .createMessages(messageFactory)
+                        .flatMap(
+                          toSend =>
+                            toSend.messagesAndDestinations.traverse_ {
+                              case (message, (name, delay)) =>
+                                delay.fold(
+                                  ifEmpty = context.send(name, message)
+                                )(
+                                  f = d => context.send(name, message, d)
+                                )
+                            }
+                        )
                   )
               _ <- pool.enqueue1((context, consumer))
             } yield ()
