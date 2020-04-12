@@ -1,7 +1,7 @@
 package jms4s.activemq
 
 import cats.data.NonEmptyList
-import cats.effect.{Blocker, Concurrent, ContextShift, Resource}
+import cats.effect.{ Blocker, Concurrent, ContextShift, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import jms4s.jms.JmsContext

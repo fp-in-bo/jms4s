@@ -36,11 +36,12 @@ object JmsTransactedConsumer {
                   _        <- Resource.liftF(pool.enqueue1((c, consumer)))
                 } yield ()
             )
-    } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel)
+    } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel, MessageFactory[F](context))
 
   private def build[F[_]: ContextShift: Concurrent](
     pool: JmsTransactedConsumerPool[F],
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    messageFactory: MessageFactory[F]
   ): JmsTransactedConsumer[F] =
     (f: JmsMessage[F] => F[TransactionAction[F]]) =>
       Stream
@@ -54,8 +55,8 @@ object JmsTransactedConsumer {
                     ifCommit = pool.commit(received.context, received.consumer),
                     ifRollback = pool.rollback(received.context, received.consumer),
                     ifSend = send => {
-                      val createMessages: MessageFactory[F] => F[TransactionAction.ToSend[F]] = send.createMessages
-                      createMessages(new MessageFactory[F](received.context))
+                      send
+                        .createMessages(messageFactory)
                         .flatMap(
                           toSend =>
                             toSend.messagesAndDestinations.traverse_ {

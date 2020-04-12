@@ -33,12 +33,13 @@ object JmsAutoAcknowledgerConsumer {
               _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, context.blocker)
+    } yield build(pool, concurrencyLevel, context.blocker, MessageFactory[F](context))
 
   private def build[F[_]: ContextShift: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
     concurrencyLevel: Int,
-    blocker: Blocker
+    blocker: Blocker,
+    messageFactory: MessageFactory[F]
   ): JmsAutoAcknowledgerConsumer[F] =
     (f: JmsMessage[F] => F[AutoAckAction[F]]) =>
       Stream
@@ -54,7 +55,7 @@ object JmsAutoAcknowledgerConsumer {
                     ifSend = send =>
                       blocker.blockOn(
                         send
-                          .createMessages(new MessageFactory[F](context))
+                          .createMessages(messageFactory)
                           .flatMap(
                             toSend =>
                               toSend.messagesAndDestinations.traverse_ {

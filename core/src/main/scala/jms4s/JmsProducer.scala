@@ -44,13 +44,14 @@ object JmsProducer {
               _ <- Resource.liftF(pool.enqueue1(c))
             } yield ()
           }
+      mf = MessageFactory[F](context)
     } yield new JmsProducer[F] {
       override def sendN(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
       ): F[Unit] =
         for {
           ctx                      <- pool.dequeue1
-          messagesWithDestinations <- f(new MessageFactory[F](ctx))
+          messagesWithDestinations <- f(mf)
           _ <- messagesWithDestinations.traverse_ {
                 case (message, destinationName) =>
                   for {
@@ -65,7 +66,7 @@ object JmsProducer {
       ): F[Unit] =
         for {
           ctx                                <- pool.dequeue1
-          messagesWithDestinationsAndDelayes <- f(new MessageFactory[F](ctx))
+          messagesWithDestinationsAndDelayes <- f(mf)
           _ <- messagesWithDestinationsAndDelayes.traverse_ {
                 case (message, (destinatioName, duration)) =>
                   duration.fold(ctx.send(destinatioName, message))(delay => ctx.send(destinatioName, message, delay))
@@ -78,7 +79,7 @@ object JmsProducer {
       ): F[Unit] =
         for {
           ctx                                 <- pool.dequeue1
-          (message, (destinationName, delay)) <- f(new MessageFactory[F](ctx))
+          (message, (destinationName, delay)) <- f(mf)
           _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
           _                                   <- pool.enqueue1(ctx)
         } yield ()
@@ -86,7 +87,7 @@ object JmsProducer {
       override def send(f: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit] =
         for {
           ctx                    <- pool.dequeue1
-          (message, destination) <- f(new MessageFactory[F](ctx))
+          (message, destination) <- f(mf)
           _                      <- ctx.send(destination, message)
           _                      <- pool.enqueue1(ctx)
         } yield ()
