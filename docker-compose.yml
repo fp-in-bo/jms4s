@@ -34,7 +34,7 @@ activemq:
     - "8161:8161" # http://localhost:8161/console
     - "61616:61616"
   volumes:
-    - ./active-mq-artemis/scripts/broker-00.xml:/var/lib/artemis/etc-override/broker-00.xml:ro
+    - ./scripts/broker-00.xml:/var/lib/artemis/etc-override/broker-00.xml:ro
   environment:
     - ARTEMIS_USERNAME=admin
     - ARTEMIS_PASSWORD=passw0rd
