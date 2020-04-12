@@ -2,15 +2,14 @@ package jms4s
 
 import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.JmsAutoAcknowledgerConsumer.JmsAutoAcknowledgerConsumerPool.JmsResource
 import jms4s.config.DestinationName
-import jms4s.jms.{ JmsConnection, JmsMessage, JmsMessageConsumer, MessageFactory }
-import jms4s.model.SessionType.AutoAcknowledge
+import jms4s.jms._
+import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -21,97 +20,25 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 object JmsAutoAcknowledgerConsumer {
 
   private[jms4s] def make[F[_]: ContextShift: Concurrent](
-    connection: JmsConnection[F],
+    context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     for {
-      input <- Resource.liftF(
-                connection.createSession(AutoAcknowledge).use(_.createDestination(inputDestinationName))
-              )
-      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
+      pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
-              session  <- connection.createSession(AutoAcknowledge)
-              consumer <- session.createConsumer(input)
-              _        <- Resource.liftF(pool.enqueue1(JmsResource(consumer, Map.empty, new MessageFactory[F](session))))
+              ctx      <- context.createContext(SessionType.AutoAcknowledge)
+              consumer <- ctx.createJmsConsumer(inputDestinationName)
+              _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, connection.blocker)
-
-  private[jms4s] def make[F[_]: ContextShift: Concurrent](
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationNames: NonEmptyList[DestinationName],
-    concurrencyLevel: Int
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    for {
-      inputDestination <- Resource.liftF(
-                           connection
-                             .createSession(AutoAcknowledge)
-                             .use(_.createDestination(inputDestinationName))
-                         )
-      outputDestinations <- Resource.liftF(
-                             outputDestinationNames
-                               .traverse(
-                                 outputDestinationName =>
-                                   connection
-                                     .createSession(AutoAcknowledge)
-                                     .use(_.createDestination(outputDestinationName))
-                                     .map(jmsDestination => (outputDestinationName, jmsDestination))
-                               )
-                           )
-      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
-      _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
-            for {
-              session  <- connection.createSession(AutoAcknowledge)
-              consumer <- session.createConsumer(inputDestination)
-              producers <- outputDestinations.traverse {
-                            case (outputDestinationName, outputDestination) =>
-                              session
-                                .createProducer(outputDestination)
-                                .map(jmsProducer => (outputDestinationName, new JmsProducer(jmsProducer)))
-                          }.map(_.toNem)
-              _ <- Resource.liftF(
-                    pool.enqueue1(JmsResource(consumer, producers.toSortedMap, new MessageFactory[F](session)))
-                  )
-            } yield ()
-          }
-    } yield build(pool, concurrencyLevel, connection.blocker)
-
-  private[jms4s] def make[F[_]: ContextShift: Concurrent](
-    connection: JmsConnection[F],
-    inputDestinationName: DestinationName,
-    outputDestinationName: DestinationName,
-    concurrencyLevel: Int
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    for {
-      inputDestination <- Resource.liftF(
-                           connection
-                             .createSession(AutoAcknowledge)
-                             .use(_.createDestination(inputDestinationName))
-                         )
-      outputDestination <- Resource.liftF(
-                            connection
-                              .createSession(AutoAcknowledge)
-                              .use(_.createDestination(outputDestinationName))
-                          )
-      pool <- Resource.liftF(Queue.bounded[F, JmsResource[F]](concurrencyLevel))
-      _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
-            for {
-              session     <- connection.createSession(AutoAcknowledge)
-              consumer    <- session.createConsumer(inputDestination)
-              jmsProducer <- session.createProducer(outputDestination)
-              producer    = Map(outputDestinationName -> new JmsProducer(jmsProducer))
-              _           <- Resource.liftF(pool.enqueue1(JmsResource(consumer, producer, new MessageFactory[F](session))))
-            } yield ()
-          }
-    } yield build(pool, concurrencyLevel, connection.blocker)
+    } yield build(pool, concurrencyLevel, MessageFactory[F](context))
 
   private def build[F[_]: ContextShift: Concurrent](
-    pool: Queue[F, JmsResource[F]],
+    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
     concurrencyLevel: Int,
-    blocker: Blocker
+    messageFactory: MessageFactory[F]
   ): JmsAutoAcknowledgerConsumer[F] =
     (f: JmsMessage[F] => F[AutoAckAction[F]]) =>
       Stream
@@ -119,34 +46,27 @@ object JmsAutoAcknowledgerConsumer {
         .as(
           Stream.eval(
             for {
-              resource <- pool.dequeue1
-              message  <- resource.consumer.receiveJmsMessage
-              res      <- f(message)
+              (context, consumer) <- pool.dequeue1
+              message             <- consumer.receiveJmsMessage
+              res                 <- f(message)
               _ <- res.fold(
                     ifNoOp = Sync[F].unit,
                     ifSend = send =>
-                      blocker.blockOn(
-                        send
-                          .createMessages(resource.messageFactory)
-                          .flatMap(
-                            toSend =>
-                              toSend.messagesAndDestinations.traverse_ {
-                                case (message, (name, delay)) =>
-                                  delay.fold(
-                                    ifEmpty = resource
-                                      .producers(name)
-                                      .publish(message)
-                                  )(
-                                    f = d =>
-                                      resource
-                                        .producers(name)
-                                        .publish(message, d)
-                                  )
-                              } *> Sync[F].delay(message.wrapped.acknowledge())
-                          )
-                      )
+                      send
+                        .createMessages(messageFactory)
+                        .flatMap(
+                          toSend =>
+                            toSend.messagesAndDestinations.traverse_ {
+                              case (message, (name, delay)) =>
+                                delay.fold(
+                                  ifEmpty = context.send(name, message)
+                                )(
+                                  f = d => context.send(name, message, d)
+                                )
+                            }
+                        )
                   )
-              _ <- pool.enqueue1(resource)
+              _ <- pool.enqueue1((context, consumer))
             } yield ()
           )
         )
@@ -154,14 +74,6 @@ object JmsAutoAcknowledgerConsumer {
         .repeat
         .compile
         .drain
-
-  object JmsAutoAcknowledgerConsumerPool {
-    private[jms4s] case class JmsResource[F[_]] private[jms4s] (
-      consumer: JmsMessageConsumer[F],
-      producers: Map[DestinationName, JmsProducer[F]],
-      messageFactory: MessageFactory[F]
-    )
-  }
 
   sealed abstract class AutoAckAction[F[_]] extends Product with Serializable {
     def fold(ifNoOp: => F[Unit], ifSend: AutoAckAction.Send[F] => F[Unit]): F[Unit]
