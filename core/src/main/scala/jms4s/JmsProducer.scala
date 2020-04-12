@@ -53,10 +53,7 @@ object JmsProducer {
           ctx                      <- pool.dequeue1
           messagesWithDestinations <- f(mf)
           _ <- messagesWithDestinations.traverse_ {
-                case (message, destinationName) =>
-                  for {
-                    _ <- ctx.send(destinationName, message)
-                  } yield ()
+                case (message, destinationName) => ctx.send(destinationName, message)
               }
           _ <- pool.enqueue1(ctx)
         } yield ()
