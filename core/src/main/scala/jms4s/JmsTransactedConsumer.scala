@@ -82,7 +82,7 @@ object JmsTransactedConsumer {
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])]
   ) {
 
-    def receive: F[Received[F]] =
+    val receive: F[Received[F]] =
       for {
         (context, consumer) <- pool.dequeue1
         message             <- consumer.receiveJmsMessage
