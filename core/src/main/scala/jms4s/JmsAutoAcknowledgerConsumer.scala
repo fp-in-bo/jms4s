@@ -2,7 +2,7 @@ package jms4s
 
 import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
@@ -33,12 +33,11 @@ object JmsAutoAcknowledgerConsumer {
               _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, context.blocker, MessageFactory[F](context))
+    } yield build(pool, concurrencyLevel, MessageFactory[F](context))
 
   private def build[F[_]: ContextShift: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
     concurrencyLevel: Int,
-    blocker: Blocker,
     messageFactory: MessageFactory[F]
   ): JmsAutoAcknowledgerConsumer[F] =
     (f: JmsMessage[F] => F[AutoAckAction[F]]) =>
