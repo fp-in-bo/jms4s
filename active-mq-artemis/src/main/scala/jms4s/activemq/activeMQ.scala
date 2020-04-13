@@ -31,15 +31,14 @@ object activeMQ {
                       val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
                       factory.setClientID(config.clientId.value)
 
-                      config.username.fold(factory.createContext())(
-                        username => factory.createContext(username.value, config.password.map(_.value).getOrElse(""))
+                      config.username.fold(factory.createContext())(username =>
+                        factory.createContext(username.value, config.password.map(_.value).getOrElse(""))
                       )
                     }
-                )(
-                  c =>
-                    Logger[F].info(s"Closing context $c to MQ at ${hosts(config.endpoints)}...") *>
-                      blocker.delay(c.close()) *>
-                      Logger[F].info(s"Closed context $c to MQ at ${hosts(config.endpoints)}.")
+                )(c =>
+                  Logger[F].info(s"Closing context $c to MQ at ${hosts(config.endpoints)}...") *>
+                    blocker.delay(c.close()) *>
+                    Logger[F].info(s"Closed context $c to MQ at ${hosts(config.endpoints)}.")
                 )
       _ <- Resource.liftF(Logger[F].info(s"Opened context $context."))
     } yield new JmsContext[F](context, blocker)

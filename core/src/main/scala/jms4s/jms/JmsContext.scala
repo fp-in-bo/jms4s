@@ -25,10 +25,9 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
             _   <- Logger[F].info(s"Context $ctx successfully created")
           } yield ctx
         }
-      )(
-        context =>
-          Logger[F].info(s"Releasing context $context") *>
-            blocker.delay(context.close())
+      )(context =>
+        Logger[F].info(s"Releasing context $context") *>
+          blocker.delay(context.close())
       )
       .map(context => new JmsContext(context, blocker))
 
@@ -52,10 +51,9 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
       consumer <- Resource.make(
                    Logger[F].info(s"Creating consumer for destination $destinationName") *>
                      blocker.delay(context.createConsumer(destination.wrapped))
-                 )(
-                   consumer =>
-                     Logger[F].info(s"Closing consumer for destination $destinationName") *>
-                       blocker.delay(consumer.close())
+                 )(consumer =>
+                   Logger[F].info(s"Closing consumer for destination $destinationName") *>
+                     blocker.delay(consumer.close())
                  )
     } yield new JmsMessageConsumer[F](consumer)
 

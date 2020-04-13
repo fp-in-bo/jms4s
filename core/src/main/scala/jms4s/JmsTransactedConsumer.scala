@@ -28,13 +28,12 @@ object JmsTransactedConsumer {
     for {
       pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
       _ <- (0 until concurrencyLevel).toList
-            .traverse_(
-              _ =>
-                for {
-                  c        <- context.createContext(SessionType.Transacted)
-                  consumer <- c.createJmsConsumer(inputDestinationName)
-                  _        <- Resource.liftF(pool.enqueue1((c, consumer)))
-                } yield ()
+            .traverse_(_ =>
+              for {
+                c        <- context.createContext(SessionType.Transacted)
+                consumer <- c.createJmsConsumer(inputDestinationName)
+                _        <- Resource.liftF(pool.enqueue1((c, consumer)))
+              } yield ()
             )
     } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel, MessageFactory[F](context))
 
@@ -57,16 +56,14 @@ object JmsTransactedConsumer {
                     ifSend = send => {
                       send
                         .createMessages(messageFactory)
-                        .flatMap(
-                          toSend =>
-                            toSend.messagesAndDestinations.traverse_ {
-                              case (message, (name, delay)) =>
-                                delay.fold(
-                                  received.context.send(name, message)
-                                )(
-                                  d => received.context.send(name, message, d)
-                                ) *> pool.commit(received.context, received.consumer)
-                            }
+                        .flatMap(toSend =>
+                          toSend.messagesAndDestinations.traverse_ {
+                            case (message, (name, delay)) =>
+                              delay.fold(
+                                received.context.send(name, message)
+                              )(d => received.context.send(name, message, d)) *> pool
+                                .commit(received.context, received.consumer)
+                          }
                         )
                     }
                   )
@@ -122,6 +119,7 @@ object JmsTransactedConsumer {
     case class Send[F[_]](
       createMessages: MessageFactory[F] => F[ToSend[F]]
     ) extends TransactionAction[F] {
+
       override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
         ifSend(this)
     }
@@ -137,8 +135,8 @@ object JmsTransactedConsumer {
     def sendN[F[_]: Functor](
       messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
     ): Send[F] =
-      Send[F](
-        mf => messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
+      Send[F](mf =>
+        messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
       )
 
     def sendNWithDelay[F[_]: Functor](
@@ -152,8 +150,8 @@ object JmsTransactedConsumer {
       Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
 
     def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): Send[F] =
-      Send[F](
-        mf => messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
+      Send[F](mf =>
+        messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
       )
   }
 }

@@ -46,6 +46,7 @@ object JmsProducer {
           }
       mf = MessageFactory[F](context)
     } yield new JmsProducer[F] {
+
       override def sendN(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
       ): F[Unit] =

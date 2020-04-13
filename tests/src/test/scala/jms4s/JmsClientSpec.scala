@@ -327,11 +327,10 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     res.use {
       case (producer, consumer1, consumer2, bodies, messages) =>
         for {
-          _ <- messages.parTraverse_(
-                msg =>
-                  producer.send(messageFactory(msg, outputQueueName1)) *> producer.send(
-                    messageFactory(msg, outputQueueName2)
-                  )
+          _ <- messages.parTraverse_(msg =>
+                producer.send(messageFactory(msg, outputQueueName1)) *> producer.send(
+                  messageFactory(msg, outputQueueName2)
+                )
               )
           _                  <- logger.info(s"Pushed ${messages.size} messages.")
           _                  <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
@@ -358,8 +357,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     res.use {
       case (producer, consumer1, consumer2, bodies, messages) =>
         for {
-          _ <- messages.parTraverse_(
-                msg => producer.send(messageFactory(msg, topicName1)) *> producer.send(messageFactory(msg, topicName2))
+          _ <- messages.parTraverse_(msg =>
+                producer.send(messageFactory(msg, topicName1)) *> producer.send(messageFactory(msg, topicName2))
               )
           _                   <- logger.info(s"Pushed ${messages.size} messages.")
           _                   <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")

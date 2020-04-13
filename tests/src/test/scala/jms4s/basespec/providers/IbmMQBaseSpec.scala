@@ -12,23 +12,22 @@ trait IbmMQBaseSpec extends Jms4sBaseSpec {
   override def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
     Blocker
       .apply[IO]
-      .flatMap(
-        blocker =>
-          ibmMQ.makeContext[IO](
-            Config(
-              qm = QueueManager("QM1"),
-              endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
-              // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
-              // but maybe it's just me not understanding something properly.. as usual
-              //          channel = Channel("DEV.APP.SVRCONN"),
-              //          username = Some(Username("app")),
-              //          password = None,
-              channel = Channel("DEV.ADMIN.SVRCONN"),
-              username = Some(Username("admin")),
-              password = Some(Password("passw0rd")),
-              clientId = ClientId("jms-specs")
-            ),
-            blocker
-          )
+      .flatMap(blocker =>
+        ibmMQ.makeContext[IO](
+          Config(
+            qm = QueueManager("QM1"),
+            endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
+            // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
+            // but maybe it's just me not understanding something properly.. as usual
+            //          channel = Channel("DEV.APP.SVRCONN"),
+            //          username = Some(Username("app")),
+            //          password = None,
+            channel = Channel("DEV.ADMIN.SVRCONN"),
+            username = Some(Username("admin")),
+            password = Some(Password("passw0rd")),
+            clientId = ClientId("jms-specs")
+          ),
+          blocker
+        )
       )
 }

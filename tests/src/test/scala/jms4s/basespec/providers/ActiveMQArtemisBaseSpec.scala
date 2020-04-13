@@ -12,17 +12,16 @@ trait ActiveMQArtemisBaseSpec extends Jms4sBaseSpec {
   override def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
     Blocker
       .apply[IO]
-      .flatMap(
-        blocker =>
-          activeMQ.makeContext[IO](
-            Config(
-              endpoints = NonEmptyList.one(Endpoint("localhost", 61616)),
-              username = Some(Username("admin")),
-              password = Some(Password("passw0rd")),
-              clientId = ClientId("jms-specs")
-            ),
-            blocker
-          )
+      .flatMap(blocker =>
+        activeMQ.makeContext[IO](
+          Config(
+            endpoints = NonEmptyList.one(Endpoint("localhost", 61616)),
+            username = Some(Username("admin")),
+            password = Some(Password("passw0rd")),
+            clientId = ClientId("jms-specs")
+          ),
+          blocker
+        )
       )
 
 }

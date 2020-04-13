@@ -69,6 +69,7 @@ class JmsMessage[F[_]: Sync] private[jms4s] (private[jms4s] val wrapped: Message
 }
 
 object MessageOps {
+
   implicit def showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
       case message: TextMessage => Try(message.getText)

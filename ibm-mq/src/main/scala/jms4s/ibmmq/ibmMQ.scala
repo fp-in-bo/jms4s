@@ -47,11 +47,10 @@ object ibmMQ {
                         )
                       }.getOrElse(connectionFactory.createContext())
                     }
-                )(
-                  c =>
-                    Logger[F].info(s"Closing Context $c at ${hosts(config.endpoints)}...") *>
-                      blocker.delay(c.close()) *>
-                      Logger[F].info(s"Closed Context $c.")
+                )(c =>
+                  Logger[F].info(s"Closing Context $c at ${hosts(config.endpoints)}...") *>
+                    blocker.delay(c.close()) *>
+                    Logger[F].info(s"Closed Context $c.")
                 )
       _ <- Resource.liftF(Logger[F].info(s"Opened Context $context at ${hosts(config.endpoints)}."))
     } yield new JmsContext[F](context, blocker)

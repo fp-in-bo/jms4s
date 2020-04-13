@@ -54,16 +54,15 @@ object JmsAutoAcknowledgerConsumer {
                     ifSend = send =>
                       send
                         .createMessages(messageFactory)
-                        .flatMap(
-                          toSend =>
-                            toSend.messagesAndDestinations.traverse_ {
-                              case (message, (name, delay)) =>
-                                delay.fold(
-                                  ifEmpty = context.send(name, message)
-                                )(
-                                  f = d => context.send(name, message, d)
-                                )
-                            }
+                        .flatMap(toSend =>
+                          toSend.messagesAndDestinations.traverse_ {
+                            case (message, (name, delay)) =>
+                              delay.fold(
+                                ifEmpty = context.send(name, message)
+                              )(
+                                f = d => context.send(name, message, d)
+                              )
+                          }
                         )
                   )
               _ <- pool.enqueue1((context, consumer))
@@ -80,6 +79,7 @@ object JmsAutoAcknowledgerConsumer {
   }
 
   object AutoAckAction {
+
     private[jms4s] case class NoOp[F[_]]() extends AutoAckAction[F] {
       override def fold(ifNoOp: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifNoOp
     }
@@ -87,6 +87,7 @@ object JmsAutoAcknowledgerConsumer {
     case class Send[F[_]](
       createMessages: MessageFactory[F] => F[ToSend[F]]
     ) extends AutoAckAction[F] {
+
       override def fold(ifNoOp: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
         ifSend(this)
     }
@@ -100,8 +101,8 @@ object JmsAutoAcknowledgerConsumer {
     def sendN[F[_]: Functor](
       messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
     ): Send[F] =
-      Send[F](
-        mf => messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
+      Send[F](mf =>
+        messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
       )
 
     def sendNWithDelay[F[_]: Functor](
@@ -115,8 +116,8 @@ object JmsAutoAcknowledgerConsumer {
       Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
 
     def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): Send[F] =
-      Send[F](
-        mf => messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
+      Send[F](mf =>
+        messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
       )
   }
 }

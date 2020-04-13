@@ -84,13 +84,12 @@ trait Jms4sBaseSpec {
     messages: NonEmptyList[JmsTextMessage[IO]]
   ): MessageFactory[IO] => IO[NonEmptyList[JmsTextMessage[IO]]] = { mFactory: MessageFactory[IO] =>
     messages
-      .map(
-        message =>
-          message.getText.flatMap { text =>
-            mFactory
-              .makeTextMessage(text)
-              .map(message => (message))
-          }
+      .map(message =>
+        message.getText.flatMap { text =>
+          mFactory
+            .makeTextMessage(text)
+            .map(message => (message))
+        }
       )
       .sequence
   }
@@ -100,15 +99,11 @@ trait Jms4sBaseSpec {
     destinationName: DestinationName
   ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] =
     (mFactory: MessageFactory[IO]) =>
-      messages
-        .map(
-          message => {
-            message.getText.flatMap { text =>
-              mFactory
-                .makeTextMessage(text)
-                .map(message => (message))
-            }.map(message => (message, destinationName))
-          }
-        )
-        .sequence
+      messages.map { message =>
+        message.getText.flatMap { text =>
+          mFactory
+            .makeTextMessage(text)
+            .map(message => (message))
+        }.map(message => (message, destinationName))
+      }.sequence
 }
