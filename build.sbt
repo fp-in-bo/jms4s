@@ -65,7 +65,7 @@ lazy val site = project
     Seq(
       micrositeName := "jms4s",
       micrositeDescription := "fs2/cats-effects wrapper for jms",
-      micrositeAuthor := "Alessandro Zoffoli",
+      micrositeAuthor := "fp-in-bo",
       micrositeGithubOwner := "fp-in-bo",
       micrositeGithubRepo := "jms4s",
       micrositeBaseUrl := "/jms4s",
