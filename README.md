@@ -1,4 +1,4 @@
-# jms4s - a cats-effects wrapper for jms 
+# jms4s - a functional wrapper for jms
 [![Build Status](https://travis-ci.com/fp-in-bo/jms4s.svg?branch=master)](https://travis-ci.com/fpinbo/jms4s)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/dev.fpinbo/jms4s_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/dev.fpinbo/jms4s_2.12)
 ![Code of Consuct](https://img.shields.io/badge/Code%20of%20Conduct-Scala-blue.svg)
@@ -39,5 +39,34 @@ libraryDependencies ++= Seq(
 
 ## Local dev
 
+## run tests
+
 - `docker-compose up -d`
 - `sbt test`
+
+### site
+
+- build site
+
+```
+docker run \
+  -v $PWD:/$PWD \
+  -v ~/.sbt:/root/.sbt \
+  -v ~/.ivy2:/root/.ivy2 \
+  -v ~/.m2:/root/.m2 \
+  -v ~/.coursier:/root/.coursier \
+  -w /$PWD \
+  -it k3vin/sbt-java8-jekyll \
+  sbt site/clean site/makeMicrosite
+```
+
+- run at localhost:4000/
+
+```
+docker run \
+  -v $PWD:/$PWD \
+  -w /$PWD/site/target/site \
+  -p 4000:4000 \
+  -it k3vin/sbt-java8-jekyll \
+  jekyll serve --host 0.0.0.0
+```
