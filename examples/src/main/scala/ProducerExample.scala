@@ -1,58 +1,19 @@
----
-layout: docs
-title:  "Acknowledger Consumer"
----
-
-# Producer
-
-An `JmsProducer` is a producer which let the client publish a message in queues/topics.
-
-- sendN: to send N messages to N Destinations.
-```scala
-def sendN(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
-  ): F[Unit]
-```
-
-- sendNWithDelay: to send N messages to N Destinations with an optional delay.
-```scala
-  def sendNWithDelay(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
-  ): F[Unit]
-```
-
-- sendWithDelay: to send a message to a Destination.
-```scala
-  def sendWithDelay(
-    messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
-  ): F[Unit]
-```
-- send: to send a message to a Destination.
-```scala
-  def send(messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
-```
-
-For each operation the client has to provide a MessageFactory in order to create the JmsMessage to send.
-
-## A complete example
-
-```scala
 import cats.data.NonEmptyList
-import cats.effect.{ExitCode, IO, IOApp, Resource}
+import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import cats.implicits._
 import jms4s.JmsClient
-import jms4s.config.{DestinationName, TopicName}
+import jms4s.config.{ DestinationName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{JmsContext, MessageFactory}
+import jms4s.jms.{ JmsContext, MessageFactory }
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 class ProducerExample extends IOApp {
 
   val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
   val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
   val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
-  val delay: FiniteDuration                    = 10 millis
+  val delay: FiniteDuration                    = 10.millis
   val concurrencyLevel                         = 10
   val messageStrings: List[String]             = (0 until concurrencyLevel).map(i => s"$i").toList
 
@@ -121,5 +82,3 @@ class ProducerExample extends IOApp {
           .map(message => (message, (destinationName, delay)))
       }.sequence
 }
-
-```
