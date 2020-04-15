@@ -1,6 +1,6 @@
 ---
 layout: docs
-title:  "Acknowledger Consumer"
+title:  "JmsProducer Consumer"
 ---
 
 # Producer
@@ -9,117 +9,110 @@ An `JmsProducer` is a producer which let the client publish a message in queues/
 
 - sendN: to send N messages to N Destinations.
 ```scala
-def sendN(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
-  ): F[Unit]
+def sendN(makeN: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]): F[Unit]
 ```
 
 - sendNWithDelay: to send N messages to N Destinations with an optional delay.
 ```scala
-  def sendNWithDelay(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
-  ): F[Unit]
+  def sendNWithDelay(makeNWithDelay: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]): F[Unit]
 ```
 
 - sendWithDelay: to send a message to a Destination.
 ```scala
-  def sendWithDelay(
-    messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
-  ): F[Unit]
+  def sendWithDelay(make1WithDelay: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]): F[Unit]
 ```
 - send: to send a message to a Destination.
 ```scala
-  def send(messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
+  def send(make1: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
 ```
 
-For each operation the client has to provide a MessageFactory in order to create the JmsMessage to send.
+For each operation the client has to provide a function which knows how to build a `JmsMessage` given a `MessageFactory`.
+This may appear counter-intuitive at first, but the reason behind this design is that creating a `JmsMessage` is an operation which involves interacting with jms apis, and we want to provide an high level api so that the user can't do things wrong.
 
 ## A complete example
 
 ```scala
 import cats.data.NonEmptyList
-import cats.effect.{ExitCode, IO, IOApp, Resource}
+import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import cats.implicits._
 import jms4s.JmsClient
-import jms4s.config.{DestinationName, TopicName}
+import jms4s.config.{ DestinationName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{JmsContext, MessageFactory}
+import jms4s.jms.{ JmsContext, MessageFactory }
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.{ FiniteDuration, _ }
 
 class ProducerExample extends IOApp {
 
   val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
   val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
   val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
-  val delay: FiniteDuration                    = 10 millis
-  val concurrencyLevel                         = 10
-  val messageStrings: List[String]             = (0 until concurrencyLevel).map(i => s"$i").toList
+  val delay: FiniteDuration                    = 10.millis
+  val messageStrings: NonEmptyList[String]     = NonEmptyList.fromListUnsafe((0 until 10).map(i => s"$i").toList)
 
   override def run(args: List[String]): IO[ExitCode] = {
     val producerRes = for {
       jmsContext <- contextRes
-      messages   <- Resource.liftF(messageStrings.traverse(i => jmsContext.createTextMessage(i)))
-      producer   <- jmsClient.createProducer(jmsContext, concurrencyLevel)
-    } yield (producer, messages)
+      producer   <- jmsClient.createProducer(jmsContext, 10)
+    } yield producer
 
-    producerRes.use {
-      case (producer, messages) => {
-          for {
-            _ <- messages.toNel.fold(IO.unit)(ms => producer.sendN(sendNmessageFactory(ms, outputTopic)))
-            _ <- messages.toNel.fold(IO.unit)(ms =>
-                  producer.sendNWithDelay(sendNWithDelayMessageFactory(ms, outputTopic, Some(delay)))
-                )
-            _ <- producer.send(sendMessageFactory(messages.head, outputTopic))
-            _ <- producer.sendWithDelay(sendWithDelayMessageFactory(messages.head, outputTopic, Some(delay)))
-          } yield ()
-        }.as(ExitCode.Success)
+    producerRes.use { producer =>
+      {
+        for {
+          _ <- producer.sendN(makeN(messageStrings, outputTopic))
+          _ <- producer.sendNWithDelay(makeNWithDelay(messageStrings, outputTopic, delay))
+          _ <- producer.send(make1(messageStrings.head, outputTopic))
+          _ <- producer.sendWithDelay(make1WithDelay(messageStrings.head, outputTopic, delay))
+        } yield ()
+      }.as(ExitCode.Success)
     }
   }
 
-  private def sendMessageFactory(
-    message: JmsTextMessage[IO],
+  private def make1(
+    text: String,
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { (mFactory: MessageFactory[IO]) =>
-    message.getText.flatMap { text =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { mFactory =>
+    mFactory
+      .makeTextMessage(text)
+      .map(message => (message, destinationName))
+  }
+
+  private def makeN(
+    texts: NonEmptyList[String],
+    destinationName: DestinationName
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] = { mFactory =>
+    texts.traverse { text =>
       mFactory
         .makeTextMessage(text)
-    }.map(message => (message, destinationName))
+        .map(message => (message, destinationName))
+    }
   }
 
-  private def sendNmessageFactory(
-    messages: NonEmptyList[JmsTextMessage[IO]],
-    destinationName: DestinationName
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] = { (mFactory: MessageFactory[IO]) =>
-    messages.map { message =>
-      message.getText.flatMap { text =>
+  private def make1WithDelay(
+    text: String,
+    destinationName: DestinationName,
+    delay: FiniteDuration
+  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] = { mFactory =>
+    mFactory
+      .makeTextMessage(text)
+      .map(message => (message, (destinationName, Some(delay))))
+  }
+
+  private def makeNWithDelay(
+    texts: NonEmptyList[String],
+    destinationName: DestinationName,
+    delay: FiniteDuration
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))]] = {
+    mFactory =>
+      texts.traverse { text =>
         mFactory
           .makeTextMessage(text)
-      }.map(message => (message, destinationName))
-    }.sequence
+          .map(message => (message, (destinationName, Some(delay))))
+      }
   }
-
-  private def sendWithDelayMessageFactory(
-    message: JmsTextMessage[IO],
-    destinationName: DestinationName,
-    delay: Option[FiniteDuration]
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] =
-    (mFactory: MessageFactory[IO]) =>
-      message.getText
-        .flatMap(text => mFactory.makeTextMessage(text))
-        .map(message => (message, (destinationName, delay)))
-
-  private def sendNWithDelayMessageFactory(
-    messages: NonEmptyList[JmsTextMessage[IO]],
-    destinationName: DestinationName,
-    delay: Option[FiniteDuration]
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))]] =
-    (mFactory: MessageFactory[IO]) =>
-      messages.map { message =>
-        message.getText
-          .flatMap(text => mFactory.makeTextMessage(text))
-          .map(message => (message, (destinationName, delay)))
-      }.sequence
 }
-
 ```
+
+### A note on concurrency
+
+A `JmsProducer` can be used concurrently, performing up to `concurrencyLevel` concurrent operation.
