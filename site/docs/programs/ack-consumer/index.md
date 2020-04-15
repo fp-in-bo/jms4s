@@ -3,9 +3,9 @@ layout: docs
 title:  "Acknowledger Consumer"
 ---
 
-# Acknowledger Consumer
+# Jms Acknowledger Consumer
 
-An `AcknowledgerConsumer` is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception.
+An `JmsAcknowledgerConsumer` is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception.
 Its only operations is:
 
 ```scala
