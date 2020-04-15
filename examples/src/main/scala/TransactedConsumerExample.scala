@@ -1,11 +1,3 @@
----
-layout: docs
-title:  "Transacted Consumer"
----
-
-# Transacted Consumer
-
-````scala
 import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import cats.implicits._
 import jms4s.JmsClient
@@ -44,4 +36,3 @@ class TransactedConsumerExample extends IOApp {
     }.as(ExitCode.Success))
   }
 }
-````
