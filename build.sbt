@@ -64,23 +64,12 @@ lazy val site = project
     import microsites._
     Seq(
       micrositeName := "jms4s",
-      micrositeDescription := "fs2/cats-effects wrapper for jms",
+      micrositeDescription := "a functional wrapper for jms",
       micrositeAuthor := "fp-in-bo",
       micrositeGithubOwner := "fp-in-bo",
       micrositeGithubRepo := "jms4s",
-      micrositeBaseUrl := "/jms4s",
       micrositeFooterText := None,
-      micrositeHighlightTheme := "atom-one-light",
-      micrositePalette := Map(
-        "brand-primary"   -> "#3e5b95",
-        "brand-secondary" -> "#294066",
-        "brand-tertiary"  -> "#2d5799",
-        "gray-dark"       -> "#49494B",
-        "gray"            -> "#7B7B7E",
-        "gray-light"      -> "#E5E5E6",
-        "gray-lighter"    -> "#F4F3F4",
-        "white-color"     -> "#FFFFFF"
-      ),
+      micrositeGitterChannel := false,
       micrositeCompilingDocsTool := WithMdoc,
       scalacOptions in Tut --= Seq(
         "-Xfatal-warnings",
@@ -93,15 +82,20 @@ lazy val site = project
       micrositePushSiteWith := GitHub4s,
       micrositeGithubToken := sys.env.get("GITHUB_TOKEN"),
       micrositeExtraMdFiles := Map(
+        file("README.md") -> ExtraMdFileConfig(
+          "index.md",
+          "home",
+          Map("section" -> "home", "position" -> "0", "permalink" -> "/")
+        ),
         file("CODE_OF_CONDUCT.md") -> ExtraMdFileConfig(
           "code-of-conduct.md",
           "page",
-          Map("title" -> "code of conduct", "section" -> "code of conduct", "position" -> "100")
+          Map("title" -> "Code of conduct", "section" -> "code of conduct", "position" -> "100")
         ),
         file("LICENSE") -> ExtraMdFileConfig(
           "license.md",
           "page",
-          Map("title" -> "license", "section" -> "license", "position" -> "101")
+          Map("title" -> "License", "section" -> "license", "position" -> "101")
         )
       )
     )
@@ -136,9 +130,7 @@ inThisBuild(
     ),
     homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
-    pomIncludeRepository := { _ =>
-      false
-    },
+    pomIncludeRepository := { _ => false },
     scalacOptions in (Compile, doc) ++= Seq(
       "-groups",
       "-sourcepath",

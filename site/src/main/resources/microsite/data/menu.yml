@@ -1,0 +1,24 @@
+options:
+  - title: Programs
+    url: programs/
+    menu_section: programs
+
+    nested_options:
+      - title: Transacted Consumer
+        url: programs/tx-consumer
+      - title: Acknowledger Consumer
+        url: programs/ack-consumer
+      - title: Auto Acknowledger Consumer
+        url: programs/auto-ack-consumer
+      - title: Producer
+        url: programs/producer
+
+  - title: Providers
+    url: providers/
+    menu_section: providers
+
+    nested_options:
+      - title: IBM MQ
+        url: providers/ibm-mq
+      - title: Active MQ Artemis
+        url: providers/active-mq-artemis
