@@ -5,14 +5,14 @@ title:  "Transacted Consumer"
 
 # Transacted Consumer
 
-A `JmsTransactedConsumer` is a consumer that will use a local transaction to receiva a message and which let the client decide whether to commit or rollback it.
-Its only operations is:
+A `JmsTransactedConsumer` is a consumer that will use a local transaction to receive a message and which lets the client decide whether to commit or rollback it.
+Its only operation is:
 
 ```scala
 def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit]
 ```
 
-This is where the user of the api can specify its business logic, which can be any effectful operation.
+This is where the user of the API can specify its business logic, which can be any effectful operation.
 
 What `handle` expects is a `TransactionAction[F]`, which can be either:
 - a `TransactionAction.commit`, which will commit the local transaction

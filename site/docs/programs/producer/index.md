@@ -5,7 +5,7 @@ title:  "Producer"
 
 # Producer
 
-An `JmsProducer` is a producer which let the client publish a message in queues/topics.
+A `JmsProducer` is a producer that lets the client publish a message in queues/topics.
 
 - sendN: to send N messages to N Destinations.
 ```scala
@@ -34,8 +34,8 @@ def sendN(
   ): F[Unit]
 ```
 
-For each operation the client has to provide a function which knows how to build a `JmsMessage` given a `MessageFactory`.
-This may appear counter-intuitive at first, but the reason behind this design is that creating a `JmsMessage` is an operation which involves interacting with jms apis, and we want to provide an high level api so that the user can't do things wrong.
+For each operation, the client has to provide a function that knows how to build a `JmsMessage` given a `MessageFactory`.
+This may appear counter-intuitive at first, but the reason behind this design is that creating a `JmsMessage` is an operation that involves interacting with JMS APIs, and we want to provide a high-level API so that the user can't do things wrong.
 
 ## A complete example
 

@@ -5,18 +5,18 @@ title:  "Acknowledger Consumer"
 
 # Acknowledger Consumer
 
-An `JmsAcknowledgerConsumer` is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception.
-Its only operations is:
+A `JmsAcknowledgerConsumer` is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception.
+Its only operation is:
 
 ```scala
 def handle(f: JmsMessage[F] => F[AckAction[F]]): F[Unit]
 ```
 
-This is where the user of the api can specify its business logic, which can be any effectful operation.
+This is where the user of the API can specify its business logic, which can be any effectful operation.
 
 What `handle` expects is an `AckAction[F]`, which can be either:
 - an `AckAction.ack`, which will confirm the message
-- an `AckAction.noAck`, which will basically do nothing
+- an `AckAction.noAck`, which will do nothing
 - an `AckAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations
 
 The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
