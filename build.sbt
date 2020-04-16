@@ -68,6 +68,7 @@ lazy val site = project
       micrositeAuthor := "fp-in-bo",
       micrositeGithubOwner := "fp-in-bo",
       micrositeGithubRepo := "jms4s",
+      micrositeBaseUrl := "/jms4s",
       micrositeFooterText := None,
       micrositeGitterChannel := false,
       micrositeCompilingDocsTool := WithMdoc,

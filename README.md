@@ -60,7 +60,7 @@ docker run \
   sbt site/clean site/makeMicrosite
 ```
 
-- run at localhost:4000/
+- run at localhost:4000/jms4s/
 
 ```
 docker run \
@@ -68,5 +68,5 @@ docker run \
   -w /$PWD/site/target/site \
   -p 4000:4000 \
   -it k3vin/sbt-java8-jekyll \
-  jekyll serve --host 0.0.0.0
+  jekyll serve -b /jms4s --host 0.0.0.0
 ```
