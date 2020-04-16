@@ -3,7 +3,7 @@ layout: docs
 title:  "Transacted Consumer"
 ---
 
-# Jms Transacted Consumer
+# Transacted Consumer
 
 A `JmsTransactedConsumer` is a consumer that will use a local transaction to receiva a message and which let the client decide whether to commit or rollback it.
 Its only operations is:
@@ -15,12 +15,13 @@ def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit]
 This is where the user of the api can specify its business logic, which can be any effectful operation.
 
 What `handle` expects is a `TransactionAction[F]`, which can be either:
-- an `TransactionAction.commit`, which will commit the local transaction
-- an `TransactionAction.rollback`, which will rollback the local transaction (message will be put in the input queue)
-- an `TransactionAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations and then commit the local transaction
+- a `TransactionAction.commit`, which will commit the local transaction
+- a `TransactionAction.rollback`, which will rollback the local transaction (message will be put in the input queue)
+- a `TransactionAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations and then commit the local transaction
 
 The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
 
+## A complete example
 
 ````scala
 import cats.effect.{ ExitCode, IO, IOApp, Resource }

@@ -18,7 +18,7 @@ Currently only `javax.jms.TextMessage` is supported, but we designed the api in 
 - **[JmsTransactedConsumer](./tx-consumer/)**: A consumer that supports local transactions, also producing messages to destinations.
 - **[JmsAcknowledgerConsumer](./ack-consumer/)**: A consumer that leaves the choice to acknowledge (or not to) message consumption to the user, also producing messages to destinations.
 - **[JmsAutoAcknowledgerConsumer](./auto-ack-consumer/)**: A consumer that acknowledges message consumption automatically, also producing messages to destinations.
-- **[JmsProducer](./producer/)**: Producing messages to a destination.
+- **[JmsProducer](./producer/)**: Producing messages to one or more destinations.
 
 ## Concurrency with JMS?
 

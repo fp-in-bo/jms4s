@@ -1,6 +1,6 @@
 ---
 layout: docs
-title:  "JmsProducer Consumer"
+title:  "Producer"
 ---
 
 # Producer
@@ -9,21 +9,29 @@ An `JmsProducer` is a producer which let the client publish a message in queues/
 
 - sendN: to send N messages to N Destinations.
 ```scala
-def sendN(makeN: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]): F[Unit]
+def sendN(
+  makeN: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+): F[Unit]
 ```
 
 - sendNWithDelay: to send N messages to N Destinations with an optional delay.
 ```scala
-  def sendNWithDelay(makeNWithDelay: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]): F[Unit]
+  def sendNWithDelay(
+    makeNWithDelay: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+  ): F[Unit]
 ```
 
 - sendWithDelay: to send a message to a Destination.
 ```scala
-  def sendWithDelay(make1WithDelay: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]): F[Unit]
+  def sendWithDelay(
+    make1WithDelay: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+  ): F[Unit]
 ```
 - send: to send a message to a Destination.
 ```scala
-  def send(make1: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
+  def send(
+    make1: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]
+  ): F[Unit]
 ```
 
 For each operation the client has to provide a function which knows how to build a `JmsMessage` given a `MessageFactory`.

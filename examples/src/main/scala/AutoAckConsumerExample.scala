@@ -1,28 +1,3 @@
----
-layout: docs
-title:  "Auto-Acknowledger Consumer"
----
-
-# Auto Acknowledger Consumer
-
-An `JmsAutoAcknowledgerConsumer` is a consumer which will automatically acknowledge a message after its reception.
-Its only operations is:
-
-```scala
-def handle(f: JmsMessage[F] => F[AutoAckAction[F]]): F[Unit]
-```
-
-This is where the user of the api can specify its business logic, which can be any effectful operation.
-
-What `handle` expects is an `AutoAckAction[F]`, which can be either:
-- an `AckAction.noOp`, which will basically do nothing since the message will be acknowledged regardless
-- an `AckAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations
-
-The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
-
-## A complete example
-
-```scala
 import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import cats.implicits._
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
@@ -59,4 +34,3 @@ class AutoAckConsumerExample extends IOApp {
     }.as(ExitCode.Success))
   }
 }
-```
