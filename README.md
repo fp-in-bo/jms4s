@@ -12,7 +12,7 @@ Nobody really wants to use jms, but if you have no choice or you're not like us 
 
 ## Supported features:
 
-- Consuming, returning a never-ending cancellable program that can concurrently consumes from a queue
+- Consuming, returning a never-ending cancellable program that can concurrently consume from a queue
   -  createQueueTransactedConsumer
   -  createQueueAckConsumer
   -  createQueueAutoAckConsumer
