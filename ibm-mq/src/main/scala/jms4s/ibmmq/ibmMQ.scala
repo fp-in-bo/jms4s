@@ -6,27 +6,13 @@ import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger
+import jms4s.ibmmq.configuration.{ Configuration, Endpoint }
 import jms4s.jms.JmsContext
 
 object ibmMQ {
 
-  case class Config(
-    qm: QueueManager,
-    endpoints: NonEmptyList[Endpoint],
-    channel: Channel,
-    username: Option[Username] = None,
-    password: Option[Password] = None,
-    clientId: ClientId
-  )
-  case class Username(value: String) extends AnyVal
-  case class Password(value: String) extends AnyVal
-  case class Endpoint(host: String, port: Int)
-  case class QueueManager(value: String) extends AnyVal
-  case class Channel(value: String)      extends AnyVal
-  case class ClientId(value: String)     extends AnyVal
-
   def makeContext[F[_]: Logger: ContextShift: Concurrent](
-    config: Config,
+    config: Configuration,
     blocker: Blocker
   ): Resource[F, JmsContext[F]] =
     for {
@@ -35,15 +21,15 @@ object ibmMQ {
                     blocker.delay {
                       val connectionFactory: MQConnectionFactory = new MQConnectionFactory()
                       connectionFactory.setTransportType(CommonConstants.WMQ_CM_CLIENT)
-                      connectionFactory.setQueueManager(config.qm.value)
+                      connectionFactory.setQueueManager(config.qm.value.value)
                       connectionFactory.setConnectionNameList(hosts(config.endpoints))
-                      connectionFactory.setChannel(config.channel.value)
-                      connectionFactory.setClientID(config.clientId.value)
+                      connectionFactory.setChannel(config.channel.value.value)
+                      connectionFactory.setClientID(config.clientId.value.value)
 
-                      config.username.map { username =>
+                      config.credential.map { cr =>
                         connectionFactory.createContext(
-                          username.value,
-                          config.password.map(_.value).getOrElse("")
+                          cr.username.value.value,
+                          cr.password.value
                         )
                       }.getOrElse(connectionFactory.createContext())
                     }

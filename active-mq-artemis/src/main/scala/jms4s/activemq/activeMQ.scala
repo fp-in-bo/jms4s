@@ -4,24 +4,15 @@ import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
+import jms4s.activemq.configuration.{ Configuration, Endpoint }
 import jms4s.jms.JmsContext
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory
+import eu.timepit.refined.auto._
 
 object activeMQ {
 
-  case class Config(
-    endpoints: NonEmptyList[Endpoint],
-    username: Option[Username] = None,
-    password: Option[Password] = None,
-    clientId: ClientId
-  )
-  case class Username(value: String) extends AnyVal
-  case class Password(value: String) extends AnyVal
-  case class Endpoint(host: String, port: Int)
-  case class ClientId(value: String) extends AnyVal
-
   def makeContext[F[_]: ContextShift: Logger: Concurrent](
-    config: Config,
+    config: Configuration,
     blocker: Blocker
   ): Resource[F, JmsContext[F]] =
     for {
@@ -31,8 +22,8 @@ object activeMQ {
                       val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
                       factory.setClientID(config.clientId.value)
 
-                      config.username.fold(factory.createContext())(username =>
-                        factory.createContext(username.value, config.password.map(_.value).getOrElse(""))
+                      config.credentials.fold(factory.createContext())(cr =>
+                        factory.createContext(cr.username.value.value, cr.password.value)
                       )
                     }
                 )(c =>

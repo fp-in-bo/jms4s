@@ -7,7 +7,10 @@ val catsEffectScalaTestV = "0.4.0"
 val fs2V                 = "2.3.0"
 val log4catsV            = "1.0.1"
 val log4jSlf4jImplV      = "2.13.1"
+val newtypeV             = "0.4.3"
+val refinedV             = "0.9.13"
 
+val paradiseV         = "2.1.1"
 val kindProjectorV    = "0.11.0"
 val betterMonadicForV = "0.3.1"
 
@@ -112,6 +115,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.13.1",
   crossScalaVersions := Seq(scalaVersion.value, "2.12.10"),
   scalafmtOnCompile := true,
+  scalacOptions += "-Ymacro-annotations",
   addCompilerPlugin("org.typelevel" %% "kind-projector"     % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
   libraryDependencies ++= Seq(
@@ -121,6 +125,8 @@ lazy val commonSettings = Seq(
     "co.fs2"            %% "fs2-core"                      % fs2V,
     "co.fs2"            %% "fs2-io"                        % fs2V,
     "io.chrisdavenport" %% "log4cats-slf4j"                % log4catsV,
+    "io.estatico"       %% "newtype"                       % newtypeV,
+    "eu.timepit"        %% "refined"                       % refinedV,
     "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
   )
 )
@@ -136,9 +142,7 @@ inThisBuild(
     ),
     homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
-    pomIncludeRepository := { _ =>
-      false
-    },
+    pomIncludeRepository := { _ => false },
     scalacOptions in (Compile, doc) ++= Seq(
       "-groups",
       "-sourcepath",
