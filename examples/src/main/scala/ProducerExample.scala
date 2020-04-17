@@ -1,6 +1,5 @@
 import cats.data.NonEmptyList
 import cats.effect.{ ExitCode, IO, IOApp, Resource }
-import cats.implicits._
 import jms4s.JmsClient
 import jms4s.config.{ DestinationName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
