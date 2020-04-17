@@ -1,5 +1,4 @@
 import cats.effect.{ ExitCode, IO, IOApp, Resource }
-import cats.implicits._
 import jms4s.JmsClient
 import jms4s.JmsTransactedConsumer._
 import jms4s.config.{ QueueName, TopicName }
