@@ -1,5 +1,5 @@
 # jms4s - a functional wrapper for jms
-[![Build Status](https://travis-ci.com/fp-in-bo/jms4s.svg?branch=master)](https://travis-ci.com/fpinbo/jms4s)
+[![Build Status](https://travis-ci.com/fp-in-bo/jms4s.svg?branch=master)](https://travis-ci.com/fp-in-bo/jms4s)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/dev.fpinbo/jms4s_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/dev.fpinbo/jms4s_2.12)
 ![Code of Consuct](https://img.shields.io/badge/Code%20of%20Conduct-Scala-blue.svg)
 [![Mergify Status][mergify-status]][mergify]
