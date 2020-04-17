@@ -23,9 +23,8 @@ The consumer can be configured specifying a `concurrencyLevel`, which is used in
 
 ## A complete example
 
-```scala
+```scala mdoc
 import cats.effect.{ ExitCode, IO, IOApp, Resource }
-import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsClient
 import jms4s.config.{ QueueName, TopicName }
