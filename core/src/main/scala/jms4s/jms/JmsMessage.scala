@@ -79,7 +79,7 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
 
 object MessageOps {
 
-  implicit def showMessage: Show[Message] = Show.show[Message] { message =>
+  implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
       case message: TextMessage => Try(message.getText)
       case _                    => Failure(new RuntimeException())
@@ -113,6 +113,8 @@ object MessageOps {
         """.stripMargin
     }.getOrElse("")
   }
+
+  implicit val showJmsMessage: Show[JmsMessage] = Show.show[JmsMessage](_.wrapped.show)
 }
 
 object JmsMessage {
