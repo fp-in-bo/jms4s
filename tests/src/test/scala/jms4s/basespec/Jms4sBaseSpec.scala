@@ -32,12 +32,11 @@ trait Jms4sBaseSpec {
 
   def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
     consumer.receiveJmsMessage
-      .flatMap(_.asJmsTextMessage)
-      .flatMap(_.getText)
+      .flatMap(_.asTextF[IO])
 
-  def receiveMessage(consumer: JmsMessageConsumer[IO]): IO[JmsTextMessage[IO]] =
+  def receiveMessage(consumer: JmsMessageConsumer[IO]): IO[JmsTextMessage] =
     consumer.receiveJmsMessage
-      .flatMap(_.asJmsTextMessage)
+      .flatMap(_.asJmsTextMessageF[IO])
 
   def receiveUntil(
     consumer: JmsMessageConsumer[IO],
@@ -49,10 +48,10 @@ trait Jms4sBaseSpec {
       .iterateUntil(_.size == nMessages)
 
   def messageFactory(
-    message: JmsTextMessage[IO],
+    message: JmsTextMessage,
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { mFactory: MessageFactory[IO] =>
-    message.getText.flatMap { text =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage, DestinationName)] = { mFactory: MessageFactory[IO] =>
+    message.asTextF[IO].flatMap { text =>
       mFactory
         .makeTextMessage(text)
         .map(message => (message, destinationName))
@@ -60,20 +59,16 @@ trait Jms4sBaseSpec {
   }
 
   def messageFactory(
-    message: JmsTextMessage[IO]
-  ): MessageFactory[IO] => IO[JmsTextMessage[IO]] = { mFactory: MessageFactory[IO] =>
-    message.getText.flatMap { text =>
-      mFactory
-        .makeTextMessage(text)
-        .map(message => (message))
-    }
+    message: JmsTextMessage
+  ): MessageFactory[IO] => IO[JmsTextMessage] = { mFactory: MessageFactory[IO] =>
+    message.asTextF[IO].flatMap(text => mFactory.makeTextMessage(text))
   }
 
   def messageWithDelayFactory(
-    message: (JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] = {
+    message: (JmsTextMessage, (DestinationName, Option[FiniteDuration]))
+  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = {
     mFactory: MessageFactory[IO] =>
-      message._1.getText.flatMap { text =>
+      message._1.asTextF[IO].flatMap { text =>
         mFactory
           .makeTextMessage(text)
           .map(m => (m, (message._2._1, message._2._2)))
@@ -81,29 +76,21 @@ trait Jms4sBaseSpec {
   }
 
   def messageFactory(
-    messages: NonEmptyList[JmsTextMessage[IO]]
-  ): MessageFactory[IO] => IO[NonEmptyList[JmsTextMessage[IO]]] = { mFactory: MessageFactory[IO] =>
+    messages: NonEmptyList[JmsTextMessage]
+  ): MessageFactory[IO] => IO[NonEmptyList[JmsTextMessage]] = { mFactory: MessageFactory[IO] =>
     messages
-      .map(message =>
-        message.getText.flatMap { text =>
-          mFactory
-            .makeTextMessage(text)
-            .map(message => (message))
-        }
-      )
+      .map(message => message.asTextF[IO].flatMap(text => mFactory.makeTextMessage(text)))
       .sequence
   }
 
   def messageFactory(
-    messages: NonEmptyList[JmsTextMessage[IO]],
+    messages: NonEmptyList[JmsTextMessage],
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] =
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, DestinationName)]] =
     (mFactory: MessageFactory[IO]) =>
       messages.map { message =>
-        message.getText.flatMap { text =>
-          mFactory
-            .makeTextMessage(text)
-            .map(message => (message))
-        }.map(message => (message, destinationName))
+        IO.fromTry(message.getText)
+          .flatMap(text => mFactory.makeTextMessage(text))
+          .map(message => (message, destinationName))
       }.sequence
 }

@@ -33,8 +33,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received <- Ref.of[IO, Set[String]](Set())
           consumerFiber <- consumer.handle { message =>
                             for {
-                              tm   <- message.asJmsTextMessage
-                              body <- tm.getText
+                              body <- message.asTextF[IO]
                               _    <- received.update(_ + body)
                             } yield TransactionAction.commit
                           }.start
@@ -67,8 +66,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _ <- logger.info(s"Pushed ${messages.size} messages.")
           consumerToProducerFiber <- consumer.handle { message =>
                                       for {
-                                        tm   <- message.asJmsTextMessage
-                                        text <- tm.getText
+                                        tm   <- message.asJmsTextMessageF[IO]
+                                        text <- message.asTextF[IO]
                                       } yield
                                         if (text.toInt % 2 == 0)
                                           TransactionAction.send[IO](messageFactory(tm, outputQueueName1))
@@ -104,9 +103,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received <- Ref.of[IO, Set[String]](Set())
           consumerFiber <- consumer.handle { message =>
                             for {
-                              tm   <- message.asJmsTextMessage
-                              body <- tm.getText
-                              _    <- logger.info(body)
+                              body <- message.asTextF[IO]
                               _    <- received.update(_ + body)
                             } yield AckAction.ack
                           }.start
@@ -139,8 +136,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _ <- logger.info(s"Pushed ${messages.size} messages.")
           consumerToProducerFiber <- consumer.handle { message =>
                                       for {
-                                        tm   <- message.asJmsTextMessage
-                                        text <- tm.getText
+                                        tm   <- message.asJmsTextMessageF[IO]
+                                        text <- tm.asTextF[IO]
                                       } yield
                                         if (text.toInt % 2 == 0)
                                           AckAction.send[IO](messageFactory(tm, outputQueueName1))
@@ -176,8 +173,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           received <- Ref.of[IO, Set[String]](Set())
           consumerFiber <- consumer.handle { message =>
                             for {
-                              tm   <- message.asJmsTextMessage
-                              body <- tm.getText
+                              body <- message.asTextF[IO]
                               _    <- received.update(_ + body)
                             } yield AutoAckAction.noOp
                           }.start
@@ -211,8 +207,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _ <- logger.info(s"Pushed ${messages.size} messages.")
           consumerToProducerFiber <- consumer.handle { message =>
                                       for {
-                                        tm   <- message.asJmsTextMessage
-                                        text <- tm.getText
+                                        tm   <- message.asJmsTextMessageF[IO]
+                                        text <- tm.asTextF[IO]
                                       } yield
                                         if (text.toInt % 2 == 0)
                                           AutoAckAction.send[IO](messageFactory(tm, outputQueueName1))
@@ -387,7 +383,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           receivedMessage   <- receiveMessage(consumer).timeout(timeout)
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
-          actualBody        <- receivedMessage.getText
+          actualBody        <- receivedMessage.asTextF[IO]
           actualDelay       = (deliveryTime - producerTimestamp).millis
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }

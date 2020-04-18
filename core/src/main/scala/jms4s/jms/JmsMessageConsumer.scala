@@ -9,7 +9,7 @@ class JmsMessageConsumer[F[_]: ContextShift: Concurrent: Logger] private[jms4s] 
   private[jms4s] val wrapped: JMSConsumer
 ) {
 
-  val receiveJmsMessage: F[JmsMessage[F]] =
+  val receiveJmsMessage: F[JmsMessage] =
     interruptable(force = true) {
       val message = wrapped.receive()
       new JmsMessage(message)

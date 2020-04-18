@@ -13,18 +13,18 @@ import scala.concurrent.duration.FiniteDuration
 trait JmsProducer[F[_]] {
 
   def sendN(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
   ): F[Unit]
 
   def sendNWithDelay(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
   ): F[Unit]
 
   def sendWithDelay(
-    messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+    messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
   ): F[Unit]
 
-  def send(messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit]
+  def send(messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit]
 
 }
 
@@ -48,7 +48,7 @@ object JmsProducer {
     } yield new JmsProducer[F] {
 
       override def sendN(
-        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
       ): F[Unit] =
         for {
           ctx                      <- pool.dequeue1
@@ -60,7 +60,7 @@ object JmsProducer {
         } yield ()
 
       override def sendNWithDelay(
-        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
       ): F[Unit] =
         for {
           ctx                                <- pool.dequeue1
@@ -73,7 +73,7 @@ object JmsProducer {
         } yield ()
 
       override def sendWithDelay(
-        f: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+        f: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
       ): F[Unit] =
         for {
           ctx                                 <- pool.dequeue1
@@ -82,7 +82,7 @@ object JmsProducer {
           _                                   <- pool.enqueue1(ctx)
         } yield ()
 
-      override def send(f: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): F[Unit] =
+      override def send(f: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit] =
         for {
           ctx                    <- pool.dequeue1
           (message, destination) <- f(mf)

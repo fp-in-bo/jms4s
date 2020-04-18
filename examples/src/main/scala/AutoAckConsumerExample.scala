@@ -26,8 +26,7 @@ class AutoAckConsumerExample extends IOApp {
 
     consumerRes.use(_.handle { jmsMessage =>
       for {
-        tm   <- jmsMessage.asJmsTextMessage
-        text <- tm.getText
+        text <- jmsMessage.asTextF[IO]
         res  <- yourBusinessLogic(text)
       } yield res
     }.as(ExitCode.Success))

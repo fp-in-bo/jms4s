@@ -14,7 +14,7 @@ import jms4s.model.SessionType
 import scala.concurrent.duration.FiniteDuration
 
 trait JmsAcknowledgerConsumer[F[_]] {
-  def handle(f: JmsMessage[F] => F[AckAction[F]]): F[Unit]
+  def handle(f: JmsMessage => F[AckAction[F]]): F[Unit]
 }
 
 object JmsAcknowledgerConsumer {
@@ -41,7 +41,7 @@ object JmsAcknowledgerConsumer {
     blocker: Blocker,
     messageFactory: MessageFactory[F]
   ): JmsAcknowledgerConsumer[F] =
-    (f: JmsMessage[F] => F[AckAction[F]]) =>
+    (f: JmsMessage => F[AckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
@@ -100,7 +100,7 @@ object JmsAcknowledgerConsumer {
     }
 
     private[jms4s] case class ToSend[F[_]](
-      messagesAndDestinations: NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+      messagesAndDestinations: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     )
 
     def ack[F[_]]: AckAction[F] = Ack()
@@ -108,23 +108,23 @@ object JmsAcknowledgerConsumer {
     def noAck[F[_]]: AckAction[F] = NoAck()
 
     def sendN[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
     ): Send[F] =
       Send[F](mf =>
         messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
       )
 
     def sendNWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
     ): Send[F] =
       Send[F](mf => messageFactory(mf).map(ToSend[F]))
 
     def sendWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+      messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] =
       Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
 
-    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): Send[F] =
+    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): Send[F] =
       Send[F](mf =>
         messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
       )

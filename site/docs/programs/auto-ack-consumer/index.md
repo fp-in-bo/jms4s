@@ -9,7 +9,7 @@ A `JmsAutoAcknowledgerConsumer` is a consumer that will automatically acknowledg
 Its only operation is:
 
 ```scala
-def handle(f: JmsMessage[F] => F[AutoAckAction[F]]): F[Unit]
+def handle(f: JmsMessage => F[AutoAckAction[F]]): F[Unit]
 ```
 
 This is where the user of the API can specify its business logic, which can be any effectful operation.
@@ -51,11 +51,11 @@ class AutoAckConsumerExample extends IOApp {
 
     consumerRes.use(_.handle { jmsMessage =>
       for {
-        tm   <- jmsMessage.asJmsTextMessage
-        text <- tm.getText
+        text <- jmsMessage.asTextF[IO]
         res  <- yourBusinessLogic(text)
       } yield res
     }.as(ExitCode.Success))
   }
 }
+
 ```
