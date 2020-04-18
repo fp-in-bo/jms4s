@@ -1,11 +1,9 @@
 package jms4s.jms
 
-import cats.Show
-import cats.effect.Sync
+import cats.{ ApplicativeError, Show }
 import cats.implicits._
 import javax.jms.{ Destination, Message, TextMessage }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
-import jms4s.jms.MessageOps._
 
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
@@ -19,8 +17,11 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
 
   def attemptAsText: Try[String] = attemptAsJmsTextMessage.flatMap(_.getText)
 
-  def asJmsTextMessageF[F[_]: Sync]: F[JmsTextMessage] = Sync[F].fromTry(attemptAsJmsTextMessage)
-  def asTextF[F[_]: Sync]: F[String]                   = Sync[F].fromTry(attemptAsText)
+  def asJmsTextMessageF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[JmsTextMessage] =
+    ApplicativeError[F, Throwable].fromTry(attemptAsJmsTextMessage)
+
+  def asTextF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[String] =
+    ApplicativeError[F, Throwable].fromTry(attemptAsText)
 
   def setJMSCorrelationId(correlationId: String): Try[Unit] = Try(wrapped.setJMSCorrelationID(correlationId))
   def setJMSReplyTo(destination: JmsDestination): Try[Unit] = Try(wrapped.setJMSReplyTo(destination.wrapped))
@@ -77,7 +78,7 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
 
 }
 
-object MessageOps {
+object JmsMessage {
 
   implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
@@ -115,9 +116,6 @@ object MessageOps {
   }
 
   implicit val showJmsMessage: Show[JmsMessage] = Show.show[JmsMessage](_.wrapped.show)
-}
-
-object JmsMessage {
 
   case class UnsupportedMessage(message: Message)
       extends Exception("Unsupported Message: " + message.show)
