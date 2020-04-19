@@ -39,8 +39,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                 <- sendContext.send(inputQueueName, msg, delay)
           msg               <- consumer.receiveJmsMessage
           deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
-          tm                <- msg.asJmsTextMessage
-          actualBody        <- tm.getText
+          actualBody        <- msg.asTextF[IO]
           actualDelay       = (deliveryTime - producerTimestamp).millis
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }

@@ -9,7 +9,7 @@ A `JmsTransactedConsumer` is a consumer that will use a local transaction to rec
 Its only operation is:
 
 ```scala
-def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit]
+def handle(f: JmsMessage => F[TransactionAction[F]]): F[Unit]
 ```
 
 This is where the user of the API can specify its business logic, which can be any effectful operation.
@@ -54,8 +54,7 @@ class TransactedConsumerExample extends IOApp {
 
     consumerRes.use(_.handle { jmsMessage =>
       for {
-        tm   <- jmsMessage.asJmsTextMessage
-        text <- tm.getText
+        text <- jmsMessage.asTextF[IO]
         res  <- yourBusinessLogic(text)
       } yield res
     }.as(ExitCode.Success))

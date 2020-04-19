@@ -36,7 +36,7 @@ class ProducerExample extends IOApp {
   private def make1(
     text: String,
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { mFactory =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage, DestinationName)] = { mFactory =>
     mFactory
       .makeTextMessage(text)
       .map(message => (message, destinationName))
@@ -45,7 +45,7 @@ class ProducerExample extends IOApp {
   private def makeN(
     texts: NonEmptyList[String],
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] = { mFactory =>
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, DestinationName)]] = { mFactory =>
     texts.traverse { text =>
       mFactory
         .makeTextMessage(text)
@@ -57,7 +57,7 @@ class ProducerExample extends IOApp {
     text: String,
     destinationName: DestinationName,
     delay: FiniteDuration
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] = { mFactory =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = { mFactory =>
     mFactory
       .makeTextMessage(text)
       .map(message => (message, (destinationName, Some(delay))))
@@ -67,12 +67,11 @@ class ProducerExample extends IOApp {
     texts: NonEmptyList[String],
     destinationName: DestinationName,
     delay: FiniteDuration
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))]] = {
-    mFactory =>
-      texts.traverse { text =>
-        mFactory
-          .makeTextMessage(text)
-          .map(message => (message, (destinationName, Some(delay))))
-      }
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))]] = { mFactory =>
+    texts.traverse { text =>
+      mFactory
+        .makeTextMessage(text)
+        .map(message => (message, (destinationName, Some(delay))))
+    }
   }
 }

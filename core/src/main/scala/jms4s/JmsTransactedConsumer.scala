@@ -15,7 +15,7 @@ import jms4s.model.SessionType
 import scala.concurrent.duration.FiniteDuration
 
 trait JmsTransactedConsumer[F[_]] {
-  def handle(f: JmsMessage[F] => F[TransactionAction[F]]): F[Unit]
+  def handle(f: JmsMessage => F[TransactionAction[F]]): F[Unit]
 }
 
 object JmsTransactedConsumer {
@@ -42,7 +42,7 @@ object JmsTransactedConsumer {
     concurrencyLevel: Int,
     messageFactory: MessageFactory[F]
   ): JmsTransactedConsumer[F] =
-    (f: JmsMessage[F] => F[TransactionAction[F]]) =>
+    (f: JmsMessage => F[TransactionAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
@@ -99,7 +99,7 @@ object JmsTransactedConsumer {
   }
 
   object JmsTransactedConsumerPool {
-    case class Received[F[_]](message: JmsMessage[F], context: JmsContext[F], consumer: JmsMessageConsumer[F])
+    case class Received[F[_]](message: JmsMessage, context: JmsContext[F], consumer: JmsMessageConsumer[F])
   }
 
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
@@ -125,7 +125,7 @@ object JmsTransactedConsumer {
     }
 
     private[jms4s] case class ToSend[F[_]](
-      messagesAndDestinations: NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+      messagesAndDestinations: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     )
 
     def commit[F[_]]: TransactionAction[F] = Commit[F]()
@@ -133,23 +133,23 @@ object JmsTransactedConsumer {
     def rollback[F[_]]: TransactionAction[F] = Rollback[F]()
 
     def sendN[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
     ): Send[F] =
       Send[F](mf =>
         messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
       )
 
     def sendNWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
     ): Send[F] =
       Send[F](mf => messageFactory(mf).map(ToSend[F]))
 
     def sendWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+      messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] =
       Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
 
-    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]): Send[F] =
+    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): Send[F] =
       Send[F](mf =>
         messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
       )

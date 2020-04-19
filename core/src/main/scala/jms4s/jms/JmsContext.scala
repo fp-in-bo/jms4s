@@ -31,12 +31,12 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
       )
       .map(context => new JmsContext(context, blocker))
 
-  def send(destinationName: DestinationName, message: JmsMessage[F]): F[Unit] =
+  def send(destinationName: DestinationName, message: JmsMessage): F[Unit] =
     createDestination(destinationName)
       .flatMap(destination => blocker.delay(context.createProducer().send(destination.wrapped, message.wrapped)))
       .map(_ => ())
 
-  def send(destinationName: DestinationName, message: JmsMessage[F], delay: FiniteDuration): F[Unit] =
+  def send(destinationName: DestinationName, message: JmsMessage, delay: FiniteDuration): F[Unit] =
     for {
       destination <- createDestination(destinationName)
       p           <- Sync[F].delay(context.createProducer())
@@ -57,7 +57,7 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
                  )
     } yield new JmsMessageConsumer[F](consumer)
 
-  def createTextMessage(value: String): F[JmsTextMessage[F]] =
+  def createTextMessage(value: String): F[JmsTextMessage] =
     Sync[F].delay(new JmsTextMessage(context.createTextMessage(value)))
 
   def commit: F[Unit] = blocker.delay(context.commit())

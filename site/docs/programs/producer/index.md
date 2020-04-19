@@ -10,27 +10,27 @@ A `JmsProducer` is a producer that lets the client publish a message in queues/t
 - sendN: to send N messages to N Destinations.
 ```scala
 def sendN(
-  makeN: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], DestinationName)]]
+  makeN: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
 ): F[Unit]
 ```
 
 - sendNWithDelay: to send N messages to N Destinations with an optional delay.
 ```scala
   def sendNWithDelay(
-    makeNWithDelay: MessageFactory[F] => F[NonEmptyList[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]]
+    makeNWithDelay: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
   ): F[Unit]
 ```
 
 - sendWithDelay: to send a message to a Destination.
 ```scala
   def sendWithDelay(
-    make1WithDelay: MessageFactory[F] => F[(JmsMessage[F], (DestinationName, Option[FiniteDuration]))]
+    make1WithDelay: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
   ): F[Unit]
 ```
 - send: to send a message to a Destination.
 ```scala
   def send(
-    make1: MessageFactory[F] => F[(JmsMessage[F], DestinationName)]
+    make1: MessageFactory[F] => F[(JmsMessage, DestinationName)]
   ): F[Unit]
 ```
 
@@ -78,7 +78,7 @@ class ProducerExample extends IOApp {
   private def make1(
     text: String,
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], DestinationName)] = { mFactory =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage, DestinationName)] = { mFactory =>
     mFactory
       .makeTextMessage(text)
       .map(message => (message, destinationName))
@@ -87,7 +87,7 @@ class ProducerExample extends IOApp {
   private def makeN(
     texts: NonEmptyList[String],
     destinationName: DestinationName
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], DestinationName)]] = { mFactory =>
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, DestinationName)]] = { mFactory =>
     texts.traverse { text =>
       mFactory
         .makeTextMessage(text)
@@ -99,7 +99,7 @@ class ProducerExample extends IOApp {
     text: String,
     destinationName: DestinationName,
     delay: FiniteDuration
-  ): MessageFactory[IO] => IO[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))] = { mFactory =>
+  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = { mFactory =>
     mFactory
       .makeTextMessage(text)
       .map(message => (message, (destinationName, Some(delay))))
@@ -109,15 +109,15 @@ class ProducerExample extends IOApp {
     texts: NonEmptyList[String],
     destinationName: DestinationName,
     delay: FiniteDuration
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage[IO], (DestinationName, Option[FiniteDuration]))]] = {
-    mFactory =>
-      texts.traverse { text =>
-        mFactory
-          .makeTextMessage(text)
-          .map(message => (message, (destinationName, Some(delay))))
-      }
+  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))]] = { mFactory =>
+    texts.traverse { text =>
+      mFactory
+        .makeTextMessage(text)
+        .map(message => (message, (destinationName, Some(delay))))
+    }
   }
 }
+
 ```
 
 ### A note on concurrency

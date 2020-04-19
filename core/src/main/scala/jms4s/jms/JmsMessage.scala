@@ -1,76 +1,86 @@
 package jms4s.jms
 
-import cats.Show
-import cats.effect.Sync
+import cats.{ ApplicativeError, Show }
 import cats.implicits._
 import javax.jms.{ Destination, Message, TextMessage }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
-import jms4s.jms.MessageOps._
 
 import scala.util.control.NoStackTrace
-import scala.util.{ Failure, Try }
+import scala.util.{ Failure, Success, Try }
 
-class JmsMessage[F[_]: Sync] private[jms4s] (private[jms4s] val wrapped: Message) {
+class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
 
-  def attemptAsJmsTextMessage: Either[UnsupportedMessage, JmsTextMessage[F]] = wrapped match {
-    case textMessage: TextMessage => new JmsTextMessage(textMessage).asRight
-    case _                        => UnsupportedMessage(wrapped).asLeft
+  def attemptAsJmsTextMessage: Try[JmsTextMessage] = wrapped match {
+    case textMessage: TextMessage => Success(new JmsTextMessage(textMessage))
+    case _                        => Failure(UnsupportedMessage(wrapped))
   }
 
-  def asJmsTextMessage: F[JmsTextMessage[F]] = wrapped match {
-    case textMessage: TextMessage => new JmsTextMessage(textMessage).pure[F]
-    case _                        => Sync[F].raiseError(UnsupportedMessage(wrapped))
-  }
+  def attemptAsText: Try[String] = attemptAsJmsTextMessage.flatMap(_.getText)
 
-  def setJMSCorrelationId(correlationId: String): F[Unit] = Sync[F].delay(wrapped.setJMSCorrelationID(correlationId))
-  def setJMSReplyTo(destination: JmsDestination): F[Unit] = Sync[F].delay(wrapped.setJMSReplyTo(destination.wrapped))
-  def setJMSType(`type`: String): F[Unit]                 = Sync[F].delay(wrapped.setJMSType(`type`))
+  def asJmsTextMessageF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[JmsTextMessage] =
+    ApplicativeError[F, Throwable].fromTry(attemptAsJmsTextMessage)
 
-  def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): F[Unit] =
-    Sync[F].delay(wrapped.setJMSCorrelationIDAsBytes(correlationId))
+  def asTextF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[String] =
+    ApplicativeError[F, Throwable].fromTry(attemptAsText)
 
-  val getJMSMessageId: F[String]                 = Sync[F].delay(wrapped.getJMSMessageID)
-  val getJMSTimestamp: F[Long]                   = Sync[F].delay(wrapped.getJMSTimestamp)
-  val getJMSCorrelationId: F[String]             = Sync[F].delay(wrapped.getJMSCorrelationID)
-  val getJMSCorrelationIdAsBytes: F[Array[Byte]] = Sync[F].delay(wrapped.getJMSCorrelationIDAsBytes)
-  val getJMSReplyTo: F[Destination]              = Sync[F].delay(wrapped.getJMSReplyTo)
-  val getJMSDestination: F[Destination]          = Sync[F].delay(wrapped.getJMSDestination)
-  val getJMSDeliveryMode: F[Int]                 = Sync[F].delay(wrapped.getJMSDeliveryMode)
-  val getJMSRedelivered: F[Boolean]              = Sync[F].delay(wrapped.getJMSRedelivered)
-  val getJMSType: F[String]                      = Sync[F].delay(wrapped.getJMSType)
-  val getJMSExpiration: F[Long]                  = Sync[F].delay(wrapped.getJMSExpiration)
-  val getJMSPriority: F[Int]                     = Sync[F].delay(wrapped.getJMSPriority)
-  val getJMSDeliveryTime: F[Long]                = Sync[F].delay(wrapped.getJMSDeliveryTime)
+  def setJMSCorrelationId(correlationId: String): Try[Unit] = Try(wrapped.setJMSCorrelationID(correlationId))
+  def setJMSReplyTo(destination: JmsDestination): Try[Unit] = Try(wrapped.setJMSReplyTo(destination.wrapped))
+  def setJMSType(`type`: String): Try[Unit]                 = Try(wrapped.setJMSType(`type`))
 
-  def getBooleanProperty(name: String): F[Boolean] =
-    Sync[F].delay(wrapped.getBooleanProperty(name))
+  def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): Try[Unit] =
+    Try(wrapped.setJMSCorrelationIDAsBytes(correlationId))
 
-  def getByteProperty(name: String): F[Byte] =
-    Sync[F].delay(wrapped.getByteProperty(name))
+  val getJMSMessageId: Try[String]                 = Try(wrapped.getJMSMessageID)
+  val getJMSTimestamp: Try[Long]                   = Try(wrapped.getJMSTimestamp)
+  val getJMSCorrelationId: Try[String]             = Try(wrapped.getJMSCorrelationID)
+  val getJMSCorrelationIdAsBytes: Try[Array[Byte]] = Try(wrapped.getJMSCorrelationIDAsBytes)
+  val getJMSReplyTo: Try[Destination]              = Try(wrapped.getJMSReplyTo)
+  val getJMSDestination: Try[Destination]          = Try(wrapped.getJMSDestination)
+  val getJMSDeliveryMode: Try[Int]                 = Try(wrapped.getJMSDeliveryMode)
+  val getJMSRedelivered: Try[Boolean]              = Try(wrapped.getJMSRedelivered)
+  val getJMSType: Try[String]                      = Try(wrapped.getJMSType)
+  val getJMSExpiration: Try[Long]                  = Try(wrapped.getJMSExpiration)
+  val getJMSPriority: Try[Int]                     = Try(wrapped.getJMSPriority)
+  val getJMSDeliveryTime: Try[Long]                = Try(wrapped.getJMSDeliveryTime)
 
-  def getDoubleProperty(name: String): F[Double] =
-    Sync[F].delay(wrapped.getDoubleProperty(name))
+  def getBooleanProperty(name: String): Try[Boolean] =
+    Try(wrapped.getBooleanProperty(name))
 
-  def getFloatProperty(name: String): F[Float] =
-    Sync[F].delay(wrapped.getFloatProperty(name))
+  def getByteProperty(name: String): Try[Byte] =
+    Try(wrapped.getByteProperty(name))
 
-  def getIntProperty(name: String): F[Int] =
-    Sync[F].delay(wrapped.getIntProperty(name))
+  def getDoubleProperty(name: String): Try[Double] =
+    Try(wrapped.getDoubleProperty(name))
 
-  def getLongProperty(name: String): F[Long] =
-    Sync[F].delay(wrapped.getLongProperty(name))
+  def getFloatProperty(name: String): Try[Float] =
+    Try(wrapped.getFloatProperty(name))
 
-  def getShortProperty(name: String): F[Short] =
-    Sync[F].delay(wrapped.getShortProperty(name))
+  def getIntProperty(name: String): Try[Int] =
+    Try(wrapped.getIntProperty(name))
 
-  def getStringProperty(name: String): F[String] =
-    Sync[F].delay(wrapped.getStringProperty(name))
+  def getLongProperty(name: String): Try[Long] =
+    Try(wrapped.getLongProperty(name))
+
+  def getShortProperty(name: String): Try[Short] =
+    Try(wrapped.getShortProperty(name))
+
+  def getStringProperty(name: String): Try[String] =
+    Try(wrapped.getStringProperty(name))
+
+  def setBooleanProperty(name: String, value: Boolean): Try[Unit] = Try(wrapped.setBooleanProperty(name, value))
+  def setByteProperty(name: String, value: Byte): Try[Unit]       = Try(wrapped.setByteProperty(name, value))
+  def setDoubleProperty(name: String, value: Double): Try[Unit]   = Try(wrapped.setDoubleProperty(name, value))
+  def setFloatProperty(name: String, value: Float): Try[Unit]     = Try(wrapped.setFloatProperty(name, value))
+  def setIntProperty(name: String, value: Int): Try[Unit]         = Try(wrapped.setIntProperty(name, value))
+  def setLongProperty(name: String, value: Long): Try[Unit]       = Try(wrapped.setLongProperty(name, value))
+  def setShortProperty(name: String, value: Short): Try[Unit]     = Try(wrapped.setShortProperty(name, value))
+  def setStringProperty(name: String, value: String): Try[Unit]   = Try(wrapped.setStringProperty(name, value))
 
 }
 
-object MessageOps {
+object JmsMessage {
 
-  implicit def showMessage: Show[Message] = Show.show[Message] { message =>
+  implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
       case message: TextMessage => Try(message.getText)
       case _                    => Failure(new RuntimeException())
@@ -104,20 +114,18 @@ object MessageOps {
         """.stripMargin
     }.getOrElse("")
   }
-}
 
-object JmsMessage {
+  implicit val showJmsMessage: Show[JmsMessage] = Show.show[JmsMessage](_.wrapped.show)
 
   case class UnsupportedMessage(message: Message)
       extends Exception("Unsupported Message: " + message.show)
       with NoStackTrace
 
-  class JmsTextMessage[F[_]: Sync] private[jms4s] (override private[jms4s] val wrapped: TextMessage)
-      extends JmsMessage[F](wrapped) {
+  class JmsTextMessage private[jms4s] (override private[jms4s] val wrapped: TextMessage) extends JmsMessage(wrapped) {
 
-    def setText(text: String): F[Unit] =
-      Sync[F].delay(wrapped.setText(text))
+    def setText(text: String): Try[Unit] =
+      Try(wrapped.setText(text))
 
-    val getText: F[String] = Sync[F].delay(wrapped.getText)
+    val getText: Try[String] = Try(wrapped.getText)
   }
 }
