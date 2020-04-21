@@ -7,6 +7,7 @@ import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.Queue
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
+import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction.Send
 import jms4s.config.DestinationName
 import jms4s.jms._
 import jms4s.model.SessionType
@@ -14,7 +15,7 @@ import jms4s.model.SessionType
 import scala.concurrent.duration.FiniteDuration
 
 trait JmsAutoAcknowledgerConsumer[F[_]] {
-  def handle(f: JmsMessage => F[AutoAckAction[F]]): F[Unit]
+  def handle(f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit]
 }
 
 object JmsAutoAcknowledgerConsumer {
@@ -25,47 +26,44 @@ object JmsAutoAcknowledgerConsumer {
     concurrencyLevel: Int
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     for {
-      pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
+      pool <- Resource.liftF(
+               Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
+             )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               ctx      <- context.createContext(SessionType.AutoAcknowledge)
               consumer <- ctx.createJmsConsumer(inputDestinationName)
-              _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
+              _        <- Resource.liftF(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, MessageFactory[F](context))
+    } yield build(pool, concurrencyLevel)
 
   private def build[F[_]: ContextShift: Concurrent](
-    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
-    concurrencyLevel: Int,
-    messageFactory: MessageFactory[F]
+    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
+    concurrencyLevel: Int
   ): JmsAutoAcknowledgerConsumer[F] =
-    (f: JmsMessage => F[AutoAckAction[F]]) =>
+    (f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
           Stream.eval(
             for {
-              (context, consumer) <- pool.dequeue1
-              message             <- consumer.receiveJmsMessage
-              res                 <- f(message)
+              (context, consumer, mf) <- pool.dequeue1
+              message                 <- consumer.receiveJmsMessage
+              res: AutoAckAction[F]   <- f(message, mf)
               _ <- res.fold(
                     ifNoOp = Sync[F].unit,
-                    ifSend = send =>
-                      send
-                        .createMessages(messageFactory)
-                        .flatMap(toSend =>
-                          toSend.messagesAndDestinations.traverse_ {
-                            case (message, (name, delay)) =>
-                              delay.fold(
-                                ifEmpty = context.send(name, message)
-                              )(
-                                f = d => context.send(name, message, d)
-                              )
-                          }
-                        )
+                    ifSend = (send: Send[F]) =>
+                      send.messages.messagesAndDestinations.traverse_ {
+                        case (message, (name, delay)) =>
+                          delay.fold(
+                            ifEmpty = context.send(name, message)
+                          )(
+                            f = d => context.send(name, message, d)
+                          )
+                      }
                   )
-              _ <- pool.enqueue1((context, consumer))
+              _ <- pool.enqueue1((context, consumer, mf))
             } yield ()
           )
         )
@@ -84,9 +82,7 @@ object JmsAutoAcknowledgerConsumer {
       override def fold(ifNoOp: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifNoOp
     }
 
-    case class Send[F[_]](
-      createMessages: MessageFactory[F] => F[ToSend[F]]
-    ) extends AutoAckAction[F] {
+    case class Send[F[_]](messages: ToSend[F]) extends AutoAckAction[F] {
 
       override def fold(ifNoOp: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
         ifSend(this)
@@ -99,25 +95,23 @@ object JmsAutoAcknowledgerConsumer {
     def noOp[F[_]]: NoOp[F] = NoOp[F]()
 
     def sendN[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
+      messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): Send[F] =
-      Send[F](mf =>
-        messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
-      )
+      Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
+      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] =
-      Send[F](mf => messageFactory(mf).map(ToSend[F]))
+      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
 
-    def sendWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+    def sendWithDelay[F[_]](
+      message: JmsMessage,
+      destination: DestinationName,
+      duration: Option[FiniteDuration]
     ): Send[F] =
-      Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): Send[F] =
-      Send[F](mf =>
-        messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
-      )
+    def send[F[_]](message: JmsMessage, destination: DestinationName): Send[F] =
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }
