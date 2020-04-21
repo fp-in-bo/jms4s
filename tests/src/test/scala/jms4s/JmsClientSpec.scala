@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{IO, Resource, Timer}
+import cats.effect.{ IO, Resource, Timer }
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
@@ -72,9 +72,9 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         newm <- mf.makeTextMessage(text)
                                       } yield
                                         if (text.toInt % 2 == 0)
-                                          TransactionAction.send[IO]((newm, outputQueueName1))
+                                          TransactionAction.send[IO](newm, outputQueueName1)
                                         else
-                                          TransactionAction.send[IO]((newm, outputQueueName2))
+                                          TransactionAction.send[IO](newm, outputQueueName2)
                                     }.start
           _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
           received1 <- Ref.of[IO, Set[String]](Set())
@@ -138,13 +138,13 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _ <- logger.info(s"Pushed ${messages.size} messages.")
           consumerToProducerFiber <- consumer.handle { (message, mf) =>
                                       for {
-                                        text <- message.asTextF[IO]
+                                        text                            <- message.asTextF[IO]
                                         newm: JmsMessage.JmsTextMessage <- mf.makeTextMessage(text)
                                       } yield
                                         if (text.toInt % 2 == 0)
-                                          AckAction.send[IO]((newm, outputQueueName1))
+                                          AckAction.send[IO](newm, outputQueueName1)
                                         else
-                                          AckAction.send[IO]((newm, outputQueueName2))
+                                          AckAction.send[IO](newm, outputQueueName2)
                                     }.start
           _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
           received1 <- Ref.of[IO, Set[String]](Set())
@@ -213,8 +213,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         text <- tm.asTextF[IO]
                                       } yield
                                         if (text.toInt % 2 == 0)
-                                          AutoAckAction.send[IO]((tm, outputQueueName1))
-                                        else AutoAckAction.send[IO]((tm, outputQueueName2))
+                                          AutoAckAction.send[IO](tm, outputQueueName1)
+                                        else AutoAckAction.send[IO](tm, outputQueueName2)
                                     }.start
           _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
           received1 <- Ref.of[IO, Set[String]](Set())

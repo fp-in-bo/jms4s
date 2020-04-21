@@ -109,10 +109,14 @@ object JmsAcknowledgerConsumer {
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] = Send[F](ToSend(messages))
 
-    def sendWithDelay[F[_]: Functor](message: (JmsMessage, (DestinationName, Option[FiniteDuration]))): Send[F] =
-      Send[F](ToSend[F](NonEmptyList.one(message)))
+    def sendWithDelay[F[_]](
+      message: JmsMessage,
+      destination: DestinationName,
+      duration: Option[FiniteDuration]
+    ): Send[F] =
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]: Functor](message: (JmsMessage, DestinationName)): Send[F] =
-      Send[F](message match { case (m, n) => ToSend[F](NonEmptyList.one((m, (n, None)))) })
+    def send[F[_]: Functor](message: JmsMessage, destination: DestinationName): Send[F] =
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }

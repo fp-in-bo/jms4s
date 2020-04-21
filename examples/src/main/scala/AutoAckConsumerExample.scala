@@ -13,7 +13,7 @@ class AutoAckConsumerExample extends IOApp {
 
   def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[AutoAckAction[IO]] =
     if (text.toInt % 2 == 0) {
-      mf.makeTextMessage("a brand new message").map(newMsg => AutoAckAction.send[IO]((newMsg, outputTopic)))
+      mf.makeTextMessage("a brand new message").map(newMsg => AutoAckAction.send[IO](newMsg, outputTopic))
     } else {
       IO.pure(AutoAckAction.noOp)
     }

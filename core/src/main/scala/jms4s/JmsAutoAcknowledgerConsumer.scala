@@ -41,9 +41,8 @@ object JmsAutoAcknowledgerConsumer {
   private def build[F[_]: ContextShift: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
     concurrencyLevel: Int
-  ): JmsAutoAcknowledgerConsumer[F] = new JmsAutoAcknowledgerConsumer[F] {
-
-    override def handle(f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit] =
+  ): JmsAutoAcknowledgerConsumer[F] =
+    (f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
@@ -72,7 +71,6 @@ object JmsAutoAcknowledgerConsumer {
         .repeat
         .compile
         .drain
-  }
 
   sealed abstract class AutoAckAction[F[_]] extends Product with Serializable {
     def fold(ifNoOp: => F[Unit], ifSend: AutoAckAction.Send[F] => F[Unit]): F[Unit]
@@ -106,12 +104,14 @@ object JmsAutoAcknowledgerConsumer {
     ): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
 
-    def sendWithDelay[F[_]: Functor](
-      message: (JmsMessage, (DestinationName, Option[FiniteDuration]))
+    def sendWithDelay[F[_]](
+      message: JmsMessage,
+      destination: DestinationName,
+      duration: Option[FiniteDuration]
     ): Send[F] =
-      Send[F](ToSend[F](NonEmptyList.one(message)))
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]: Functor](message: (JmsMessage, DestinationName)): Send[F] =
-      Send[F](message match { case (m, name) => ToSend[F](NonEmptyList.one((m, (name, None)))) })
+    def send[F[_]](message: JmsMessage, destination: DestinationName): Send[F] =
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }
