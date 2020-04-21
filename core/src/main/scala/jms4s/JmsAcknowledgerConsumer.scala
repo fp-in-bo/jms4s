@@ -14,7 +14,7 @@ import jms4s.model.SessionType
 import scala.concurrent.duration.FiniteDuration
 
 trait JmsAcknowledgerConsumer[F[_]] {
-  def handle(f: JmsMessage => F[AckAction[F]]): F[Unit]
+  def handle(f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]): F[Unit]
 }
 
 object JmsAcknowledgerConsumer {
@@ -25,49 +25,44 @@ object JmsAcknowledgerConsumer {
     concurrencyLevel: Int
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
     for {
-      pool <- Resource.liftF(Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F])](concurrencyLevel))
+      pool <- Resource.liftF(
+               Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
+             )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               ctx      <- context.createContext(SessionType.ClientAcknowledge)
               consumer <- ctx.createJmsConsumer(inputDestinationName)
-              _        <- Resource.liftF(pool.enqueue1((ctx, consumer)))
+              _        <- Resource.liftF(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, context.blocker, MessageFactory[F](context))
+    } yield build(pool, concurrencyLevel, context.blocker)
 
   private def build[F[_]: ContextShift: Concurrent](
-    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F])],
+    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
     concurrencyLevel: Int,
-    blocker: Blocker,
-    messageFactory: MessageFactory[F]
+    blocker: Blocker
   ): JmsAcknowledgerConsumer[F] =
-    (f: JmsMessage => F[AckAction[F]]) =>
+    (f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
           Stream.eval(
             for {
-              (context, consumer) <- pool.dequeue1
-              message             <- consumer.receiveJmsMessage
-              res                 <- f(message)
+              (context, consumer, mFactory) <- pool.dequeue1
+              message                       <- consumer.receiveJmsMessage
+              res                           <- f(message, mFactory)
               _ <- res.fold(
                     ifAck = blocker.delay(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
-                      send
-                        .createMessages(messageFactory)
-                        .flatMap(toSend =>
-                          toSend.messagesAndDestinations.traverse_ {
-                            case (message, (name, delay)) =>
-                              delay.fold(
-                                ifEmpty = context.send(name, message)
-                              )(
-                                f = d => context.send(name, message, d)
-                              )
-                          } *> blocker.delay(message.wrapped.acknowledge())
-                        )
+                      send.messages.messagesAndDestinations.traverse_ {
+                        case (message, (name, delay)) =>
+                          delay.fold(ifEmpty = context.send(name, message))(
+                            f = d => context.send(name, message, d)
+                          )
+                      } *> blocker.delay(message.wrapped.acknowledge())
                   )
-              _ <- pool.enqueue1((context, consumer))
+              _ <- pool.enqueue1((context, consumer, mFactory))
             } yield ()
           )
         )
@@ -91,9 +86,7 @@ object JmsAcknowledgerConsumer {
       override def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifNoAck
     }
 
-    case class Send[F[_]](
-      createMessages: MessageFactory[F] => F[ToSend[F]]
-    ) extends AckAction[F] {
+    case class Send[F[_]](messages: ToSend[F]) extends AckAction[F] {
 
       override def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
         ifSend(this)
@@ -108,25 +101,18 @@ object JmsAcknowledgerConsumer {
     def noAck[F[_]]: AckAction[F] = NoAck()
 
     def sendN[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
+      messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): Send[F] =
-      Send[F](mf =>
-        messageFactory(mf).map(nel => nel.map { case (message, name) => (message, (name, None)) }).map(ToSend[F])
-      )
+      Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
-    ): Send[F] =
-      Send[F](mf => messageFactory(mf).map(ToSend[F]))
+      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+    ): Send[F] = Send[F](ToSend(messages))
 
-    def sendWithDelay[F[_]: Functor](
-      messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): Send[F] =
-      Send[F](mf => messageFactory(mf).map(x => ToSend[F](NonEmptyList.one(x))))
+    def sendWithDelay[F[_]: Functor](message: (JmsMessage, (DestinationName, Option[FiniteDuration]))): Send[F] =
+      Send[F](ToSend[F](NonEmptyList.one(message)))
 
-    def send[F[_]: Functor](messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): Send[F] =
-      Send[F](mf =>
-        messageFactory(mf).map { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) }
-      )
+    def send[F[_]: Functor](message: (JmsMessage, DestinationName)): Send[F] =
+      Send[F](message match { case (m, n) => ToSend[F](NonEmptyList.one((m, (n, None)))) })
   }
 }

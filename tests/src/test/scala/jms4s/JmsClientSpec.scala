@@ -4,12 +4,13 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource, Timer }
+import cats.effect.{IO, Resource, Timer}
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
+import jms4s.jms.JmsMessage
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -102,7 +103,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _        <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _        <- logger.info(s"Pushed ${messages.size} messages.")
           received <- Ref.of[IO, Set[String]](Set())
-          consumerFiber <- consumer.handle { message =>
+          consumerFiber <- consumer.handle { (message, _) =>
                             for {
                               body <- message.asTextF[IO]
                               _    <- received.update(_ + body)
@@ -135,15 +136,15 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
-          consumerToProducerFiber <- consumer.handle { message =>
+          consumerToProducerFiber <- consumer.handle { (message, mf) =>
                                       for {
-                                        tm   <- message.asJmsTextMessageF[IO]
-                                        text <- tm.asTextF[IO]
+                                        text <- message.asTextF[IO]
+                                        newm: JmsMessage.JmsTextMessage <- mf.makeTextMessage(text)
                                       } yield
                                         if (text.toInt % 2 == 0)
-                                          AckAction.send[IO](messageFactory(tm, outputQueueName1))
+                                          AckAction.send[IO]((newm, outputQueueName1))
                                         else
-                                          AckAction.send[IO](messageFactory(tm, outputQueueName2))
+                                          AckAction.send[IO]((newm, outputQueueName2))
                                     }.start
           _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
           received1 <- Ref.of[IO, Set[String]](Set())

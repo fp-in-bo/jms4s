@@ -145,7 +145,7 @@ object JmsTransactedConsumer {
     def sendWithDelay[F[_]: Functor](message: (JmsMessage, (DestinationName, Option[FiniteDuration]))): Send[F] =
       Send[F](ToSend[F](NonEmptyList.one(message)))
 
-    def send[F[_]: Functor](message: (JmsMessage, DestinationName)): Send[F] =
+    def send[F[_]](message: (JmsMessage, DestinationName)): Send[F] =
       Send[F](message match { case (message, name) => ToSend[F](NonEmptyList.one((message, (name, None)))) })
   }
 }
