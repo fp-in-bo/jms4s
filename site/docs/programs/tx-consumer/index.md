@@ -39,7 +39,7 @@ class TransactedConsumerExample extends IOApp {
 
   def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[TransactionAction[IO]] =
     if (text.toInt % 2 == 0)
-      mf.makeTextMessage("a brand new message").map(newMsg => TransactionAction.send((newMsg, outputTopic)))
+      mf.makeTextMessage("a brand new message").map(newMsg => TransactionAction.send(newMsg, outputTopic))
     else if (text.toInt % 3 == 0)
       IO.pure(TransactionAction.rollback)
     else IO.pure(TransactionAction.commit)
