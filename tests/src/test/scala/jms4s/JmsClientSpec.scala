@@ -12,6 +12,7 @@ import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
+
 import scala.concurrent.duration._
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
@@ -171,7 +172,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _        <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _        <- logger.info(s"Pushed ${messages.size} messages.")
           received <- Ref.of[IO, Set[String]](Set())
-          consumerFiber <- consumer.handle { message =>
+          consumerFiber <- consumer.handle { (message, _) =>
                             for {
                               body <- message.asTextF[IO]
                               _    <- received.update(_ + body)
@@ -205,14 +206,14 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
-          consumerToProducerFiber <- consumer.handle { message =>
+          consumerToProducerFiber <- consumer.handle { (message, _) =>
                                       for {
                                         tm   <- message.asJmsTextMessageF[IO]
                                         text <- tm.asTextF[IO]
                                       } yield
                                         if (text.toInt % 2 == 0)
-                                          AutoAckAction.send[IO](messageFactory(tm, outputQueueName1))
-                                        else AutoAckAction.send[IO](messageFactory(tm, outputQueueName2))
+                                          AutoAckAction.send[IO]((tm, outputQueueName1))
+                                        else AutoAckAction.send[IO]((tm, outputQueueName2))
                                     }.start
           _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
           received1 <- Ref.of[IO, Set[String]](Set())

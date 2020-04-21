@@ -9,7 +9,7 @@ A `JmsAutoAcknowledgerConsumer` is a consumer that will automatically acknowledg
 Its only operation is:
 
 ```scala
-def handle(f: JmsMessage => F[AutoAckAction[F]]): F[Unit]
+def handle(f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit]
 ```
 
 This is where the user of the API can specify its business logic, which can be any effectful operation.
@@ -27,7 +27,7 @@ import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsClient
 import jms4s.config.{ QueueName, TopicName }
-import jms4s.jms.JmsContext
+import jms4s.jms.{ JmsContext, MessageFactory }
 
 class AutoAckConsumerExample extends IOApp {
 
@@ -36,12 +36,12 @@ class AutoAckConsumerExample extends IOApp {
   val inputQueue: QueueName                    = QueueName("YUOR.INPUT.QUEUE")
   val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
 
-  def yourBusinessLogic(text: String): IO[AutoAckAction[IO]] = IO.delay {
-    if (text.toInt % 2 == 0)
-      AutoAckAction.send[IO](_.makeTextMessage("a brand new message").map(newMsg => (newMsg, outputTopic)))
-    else
-      AutoAckAction.noOp
-  }
+  def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[AutoAckAction[IO]] =
+    if (text.toInt % 2 == 0) {
+      mf.makeTextMessage("a brand new message").map(newMsg => AutoAckAction.send[IO]((newMsg, outputTopic)))
+    } else {
+      IO.pure(AutoAckAction.noOp)
+    }
 
   override def run(args: List[String]): IO[ExitCode] = {
     val consumerRes = for {
@@ -49,10 +49,10 @@ class AutoAckConsumerExample extends IOApp {
       consumer   <- jmsClient.createAutoAcknowledgerConsumer(jmsContext, inputQueue, 10)
     } yield consumer
 
-    consumerRes.use(_.handle { jmsMessage =>
+    consumerRes.use(_.handle { (jmsMessage, mf) =>
       for {
         text <- jmsMessage.asTextF[IO]
-        res  <- yourBusinessLogic(text)
+        res  <- yourBusinessLogic(text, mf)
       } yield res
     }.as(ExitCode.Success))
   }
