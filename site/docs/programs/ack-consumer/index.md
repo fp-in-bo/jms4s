@@ -9,54 +9,18 @@ A `JmsAcknowledgerConsumer` is a consumer which let the client decide whether co
 Its only operation is:
 
 ```scala
-def handle(f: JmsMessage => F[AckAction[F]]): F[Unit]
+def handle(f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]): F[Unit]
 ```
 
 This is where the user of the API can specify its business logic, which can be any effectful operation.
 
+Creating a message is as effectful operation as well, and the `MessageFactory` argument will provide the only way in which a client can create a brand new message. This argument can be ignored if the client is only consuming messages.
+
 What `handle` expects is an `AckAction[F]`, which can be either:
-- an `AckAction.ack`, which will confirm the message
-- an `AckAction.noAck`, which will do nothing
-- an `AckAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations
+- an `AckAction.ack`, which will instructs the lib to confirm the message
+- an `AckAction.noAck`, which will instructs the lib to do nothing
+- an `AckAction.send` in all its forms, which can be used to instruct the lib to send 1 or multiple messages to 1 or multiple destinations
 
 The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
 
-## A complete example
-
-```scala mdoc
-import cats.effect.{ ExitCode, IO, IOApp, Resource }
-import jms4s.JmsAcknowledgerConsumer.AckAction
-import jms4s.JmsClient
-import jms4s.config.{ QueueName, TopicName }
-import jms4s.jms.{ JmsContext, MessageFactory }
-
-class AckConsumerExample extends IOApp {
-
-  val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
-  val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
-  val inputQueue: QueueName                    = QueueName("YUOR.INPUT.QUEUE")
-  val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
-
-  def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[AckAction[IO]] =
-    if (text.toInt % 2 == 0)
-      mf.makeTextMessage("a brand new message").map(newMsg => AckAction.send(newMsg, outputTopic))
-    else if (text.toInt % 3 == 0)
-      IO.pure(AckAction.noAck)
-    else
-      IO.pure(AckAction.ack)
-
-  override def run(args: List[String]): IO[ExitCode] = {
-    val consumerRes = for {
-      jmsContext <- contextRes
-      consumer   <- jmsClient.createAcknowledgerConsumer(jmsContext, inputQueue, 10)
-    } yield consumer
-
-    consumerRes.use(_.handle { (jmsMessage, mf) =>
-      for {
-        text <- jmsMessage.asTextF[IO]
-        res  <- yourBusinessLogic(text, mf)
-      } yield res
-    }.as(ExitCode.Success))
-  }
-}
-```
+A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/master/examples/src/main/scala/AckConsumerExample.scala).

@@ -14,47 +14,12 @@ def handle(f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit]
 
 This is where the user of the API can specify its business logic, which can be any effectful operation.
 
+Creating a message is as effectful operation as well, and the `MessageFactory` argument will provide the only way in which a client can create a brand new message. This argument can be ignored if the client is only consuming messages.
+
 What `handle` expects is an `AutoAckAction[F]`, which can be either:
-- an `AckAction.noOp`, which will do nothing since the message will be acknowledged regardless
+- an `AckAction.noOp`, which will instructs the lib to do nothing since the message will be acknowledged regardless
 - an `AckAction.send` in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations
 
 The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
 
-## A complete example
-
-```scala mdoc
-import cats.effect.{ ExitCode, IO, IOApp, Resource }
-import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.JmsClient
-import jms4s.config.{ QueueName, TopicName }
-import jms4s.jms.{ JmsContext, MessageFactory }
-
-class AutoAckConsumerExample extends IOApp {
-
-  val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
-  val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
-  val inputQueue: QueueName                    = QueueName("YUOR.INPUT.QUEUE")
-  val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
-
-  def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[AutoAckAction[IO]] =
-    if (text.toInt % 2 == 0) {
-      mf.makeTextMessage("a brand new message").map(newMsg => AutoAckAction.send[IO](newMsg, outputTopic))
-    } else {
-      IO.pure(AutoAckAction.noOp)
-    }
-
-  override def run(args: List[String]): IO[ExitCode] = {
-    val consumerRes = for {
-      jmsContext <- contextRes
-      consumer   <- jmsClient.createAutoAcknowledgerConsumer(jmsContext, inputQueue, 10)
-    } yield consumer
-
-    consumerRes.use(_.handle { (jmsMessage, mf) =>
-      for {
-        text <- jmsMessage.asTextF[IO]
-        res  <- yourBusinessLogic(text, mf)
-      } yield res
-    }.as(ExitCode.Success))
-  }
-}
-```
+A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/master/examples/src/main/scala/AutoAckConsumerExample.scala).
