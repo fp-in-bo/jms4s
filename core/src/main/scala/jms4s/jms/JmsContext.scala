@@ -55,7 +55,7 @@ class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
                    Logger[F].info(s"Closing consumer for destination $destinationName") *>
                      blocker.delay(consumer.close())
                  )
-    } yield new JmsMessageConsumer[F](consumer)
+    } yield new JmsMessageConsumer[F](consumer, blocker)
 
   def createTextMessage(value: String): F[JmsTextMessage] =
     Sync[F].delay(new JmsTextMessage(context.createTextMessage(value)))
