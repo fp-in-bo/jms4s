@@ -1,17 +1,21 @@
 package jms4s.jms
 
-import cats.effect.{ Concurrent, ContextShift }
+import cats.effect.{ Blocker, ContextShift, Sync }
+import cats.implicits._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.JMSConsumer
-import jms4s.IOOps.interruptable
 
-class JmsMessageConsumer[F[_]: ContextShift: Concurrent: Logger] private[jms4s] (
-  private[jms4s] val wrapped: JMSConsumer
+class JmsMessageConsumer[F[_]: ContextShift: Sync: Logger] private[jms4s] (
+  private[jms4s] val wrapped: JMSConsumer,
+  private[jms4s] val blocker: Blocker
 ) {
 
   val receiveJmsMessage: F[JmsMessage] =
-    interruptable(force = true) {
-      val message = wrapped.receive()
-      new JmsMessage(message)
-    }
+    for {
+      recOpt <- blocker.delay(Option(wrapped.receiveNoWait()))
+      rec <- recOpt match {
+              case Some(message) => Sync[F].pure(new JmsMessage(message))
+              case None          => ContextShift[F].shift >> receiveJmsMessage
+            }
+    } yield rec
 }
