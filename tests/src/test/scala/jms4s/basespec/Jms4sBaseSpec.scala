@@ -1,16 +1,15 @@
 package jms4s.basespec
 
 import cats.data.NonEmptyList
-import cats.effect.concurrent.{ MVar, Ref }
-import cats.effect.{ Concurrent, ContextShift, IO, Resource, Timer }
+import cats.effect.concurrent.Ref
+import cats.effect.{ Concurrent, ContextShift, IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
+import jms4s.JmsClient
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
-import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
@@ -22,7 +21,7 @@ trait Jms4sBaseSpec {
   val body                         = "body"
   val nMessages: Int               = 50
   val bodies: List[String]         = (0 until nMessages).map(i => s"$i").toList
-  val poolSize: Int                = 1
+  val poolSize: Int                = 2
   val timeout: FiniteDuration      = 4.seconds // CI is slow...
   val delay: FiniteDuration        = 200.millis
   val delayWithTolerance: Duration = delay * 0.8 // it looks like activemq is not fully respecting delivery delay
@@ -36,49 +35,63 @@ trait Jms4sBaseSpec {
     consumer.receiveJmsMessage
       .flatMap(_.asTextF[IO])
 
+  def receiveMessage(consumer: JmsMessageConsumer[IO]): IO[JmsTextMessage] =
+    consumer.receiveJmsMessage
+      .flatMap(_.asJmsTextMessageF[IO])
+
   def receiveUntil(
-    consumer: JmsAutoAcknowledgerConsumer[IO],
+    consumer: JmsMessageConsumer[IO],
     received: Ref[IO, Set[String]],
-    nMessages: Int,
-    duration: FiniteDuration
-  )(implicit F: Concurrent[IO], cs: ContextShift[IO], t: Timer[IO]): IO[Set[String]] = {
-    def readMessages =
-      consumer.handle((m, _) => m.asTextF[IO].flatMap(text => received.update(_ + text).as(AutoAckAction.noOp)))
+    nMessages: Int
+  )(implicit F: Concurrent[IO]): IO[Set[String]] =
+    receiveBodyAsTextOrFail(consumer)
+      .flatMap(body => received.update(_ + body) *> received.get)
+      .iterateUntil(_.size == nMessages)
 
-    for {
-      fiber <- readMessages.start
-      set   <- received.get.iterateUntil(_.size == nMessages).timeout(duration).guarantee(fiber.cancel)
-    } yield set
-  }
-
-  def receive(
-    consumer: JmsAutoAcknowledgerConsumer[IO],
-    duration: FiniteDuration
-  )(implicit F: Concurrent[IO], cs: ContextShift[IO], t: Timer[IO]): IO[String] = {
-    val received = MVar[IO].empty[String]
-
-    def readMessage(mVar: MVar[IO, String]) =
-      consumer.handle((m, _) => m.asTextF[IO].flatMap(tm => mVar.put(tm).as(AutoAckAction.noOp)))
-
-    for {
-      mVar  <- received
-      fiber <- readMessage(mVar).start
-      tm    <- mVar.read.timeout(duration).guarantee(fiber.cancel)
-    } yield tm
-  }
-
-  def messageWithDelayFactory(
-    message: (String, (DestinationName, Option[FiniteDuration]))
-  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = {
-    mFactory: MessageFactory[IO] => mFactory.makeTextMessage(message._1).map(m => (m, message._2))
+  def messageFactory(
+    message: JmsTextMessage,
+    destinationName: DestinationName
+  ): MessageFactory[IO] => IO[(JmsTextMessage, DestinationName)] = { mFactory: MessageFactory[IO] =>
+    message.asTextF[IO].flatMap { text =>
+      mFactory
+        .makeTextMessage(text)
+        .map(message => (message, destinationName))
+    }
   }
 
   def messageFactory(
-    texts: List[String],
+    message: JmsTextMessage
+  ): MessageFactory[IO] => IO[JmsTextMessage] = { mFactory: MessageFactory[IO] =>
+    message.asTextF[IO].flatMap(text => mFactory.makeTextMessage(text))
+  }
+
+  def messageWithDelayFactory(
+    message: (JmsTextMessage, (DestinationName, Option[FiniteDuration]))
+  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = {
+    mFactory: MessageFactory[IO] =>
+      message._1.asTextF[IO].flatMap { text =>
+        mFactory
+          .makeTextMessage(text)
+          .map(m => (m, (message._2._1, message._2._2)))
+      }
+  }
+
+  def messageFactory(
+    messages: NonEmptyList[JmsTextMessage]
+  ): MessageFactory[IO] => IO[NonEmptyList[JmsTextMessage]] = { mFactory: MessageFactory[IO] =>
+    messages
+      .map(message => message.asTextF[IO].flatMap(text => mFactory.makeTextMessage(text)))
+      .sequence
+  }
+
+  def messageFactory(
+    messages: NonEmptyList[JmsTextMessage],
     destinationName: DestinationName
   ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, DestinationName)]] =
-    mf =>
-      NonEmptyList
-        .fromListUnsafe(texts.map(b => mf.makeTextMessage(b).map(t => (t, destinationName))))
-        .sequence
+    (mFactory: MessageFactory[IO]) =>
+      messages.map { message =>
+        IO.fromTry(message.getText)
+          .flatMap(text => mFactory.makeTextMessage(text))
+          .map(message => (message, destinationName))
+      }.sequence
 }
