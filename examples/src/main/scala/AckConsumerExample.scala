@@ -2,14 +2,13 @@ import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsClient
 import jms4s.config.{ QueueName, TopicName }
-import jms4s.jms.{ JmsContext, MessageFactory }
+import jms4s.jms.MessageFactory
 
 class AckConsumerExample extends IOApp {
 
-  val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
-  val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
-  val inputQueue: QueueName                    = QueueName("YUOR.INPUT.QUEUE")
-  val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
+  val contextRes: Resource[IO, JmsClient[IO]] = null // see providers section!
+  val inputQueue: QueueName                   = QueueName("YUOR.INPUT.QUEUE")
+  val outputTopic: TopicName                  = TopicName("YUOR.OUTPUT.TOPIC")
 
   def yourBusinessLogic(text: String, mf: MessageFactory[IO]): IO[AckAction[IO]] =
     if (text.toInt % 2 == 0)
@@ -21,8 +20,8 @@ class AckConsumerExample extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     val consumerRes = for {
-      jmsContext <- contextRes
-      consumer   <- jmsClient.createAcknowledgerConsumer(jmsContext, inputQueue, 10)
+      client   <- contextRes
+      consumer <- client.createAcknowledgerConsumer(inputQueue, 10)
     } yield consumer
 
     consumerRes.use(_.handle { (jmsMessage, mf) =>

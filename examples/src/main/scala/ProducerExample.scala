@@ -3,22 +3,21 @@ import cats.effect.{ ExitCode, IO, IOApp, Resource }
 import jms4s.JmsClient
 import jms4s.config.{ DestinationName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsContext, MessageFactory }
+import jms4s.jms.MessageFactory
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
 class ProducerExample extends IOApp {
 
-  val contextRes: Resource[IO, JmsContext[IO]] = null // see providers section!
-  val jmsClient: JmsClient[IO]                 = new JmsClient[IO]
-  val outputTopic: TopicName                   = TopicName("YUOR.OUTPUT.TOPIC")
-  val delay: FiniteDuration                    = 10.millis
-  val messageStrings: NonEmptyList[String]     = NonEmptyList.fromListUnsafe((0 until 10).map(i => s"$i").toList)
+  val jmsClient: Resource[IO, JmsClient[IO]] = null // see providers section!
+  val outputTopic: TopicName                 = TopicName("YUOR.OUTPUT.TOPIC")
+  val delay: FiniteDuration                  = 10.millis
+  val messageStrings: NonEmptyList[String]   = NonEmptyList.fromListUnsafe((0 until 10).map(i => s"$i").toList)
 
   override def run(args: List[String]): IO[ExitCode] = {
     val producerRes = for {
-      jmsContext <- contextRes
-      producer   <- jmsClient.createProducer(jmsContext, 10)
+      client   <- jmsClient
+      producer <- client.createProducer(10)
     } yield producer
 
     producerRes.use { producer =>
