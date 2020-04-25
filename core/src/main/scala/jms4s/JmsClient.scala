@@ -4,7 +4,7 @@ import cats.effect.{ Concurrent, ContextShift, Resource }
 import jms4s.config.DestinationName
 import jms4s.jms._
 
-class JmsClient[F[_]: ContextShift: Concurrent](private[jms4s] val context: JmsContext[F]) {
+class JmsClient[F[_]: ContextShift: Concurrent] private[jms4s] (private[jms4s] val context: JmsContext[F]) {
 
   def createTransactedConsumer(
     inputDestinationName: DestinationName,
