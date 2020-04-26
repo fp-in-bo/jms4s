@@ -4,11 +4,11 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ IO, Resource, Timer }
+import cats.implicits._
 import jms4s.basespec.Jms4sBaseSpec
+import jms4s.config.DestinationName
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
-import cats.implicits._
-import jms4s.config.DestinationName
 
 import scala.concurrent.duration._
 
@@ -16,7 +16,8 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   private def contexts(destination: DestinationName) =
     for {
-      context         <- contextRes
+      client          <- jmsClientRes
+      context         = client.context
       receiveConsumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(destination))
       sendContext     <- context.createContext(SessionType.AutoAcknowledge)
       msg             <- Resource.liftF(context.createTextMessage(body))

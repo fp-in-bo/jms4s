@@ -18,7 +18,7 @@ override def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[
   Blocker
     .apply[IO]
     .flatMap(blocker =>
-      activeMQ.makeContext[IO](
+      activeMQ.makeJmsClient[IO](
         Config(
           endpoints = NonEmptyList.one(Endpoint("localhost", 61616)),
           username = Some(Username("YOU")),

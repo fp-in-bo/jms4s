@@ -6,6 +6,7 @@ import cats.implicits._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger
+import jms4s.JmsClient
 import jms4s.jms.JmsContext
 
 object ibmMQ {
@@ -25,10 +26,10 @@ object ibmMQ {
   case class Channel(value: String)      extends AnyVal
   case class ClientId(value: String)     extends AnyVal
 
-  def makeContext[F[_]: Logger: ContextShift: Concurrent](
+  def makeJmsClient[F[_]: Logger: ContextShift: Concurrent](
     config: Config,
     blocker: Blocker
-  ): Resource[F, JmsContext[F]] =
+  ): Resource[F, JmsClient[F]] =
     for {
       context <- Resource.make(
                   Logger[F].info(s"Opening Context to MQ at ${hosts(config.endpoints)}...") >>
@@ -53,7 +54,7 @@ object ibmMQ {
                     Logger[F].info(s"Closed Context $c.")
                 )
       _ <- Resource.liftF(Logger[F].info(s"Opened Context $context at ${hosts(config.endpoints)}."))
-    } yield new JmsContext[F](context, blocker)
+    } yield new JmsClient[F](new JmsContext[F](context, blocker))
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
     endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")

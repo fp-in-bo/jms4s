@@ -18,7 +18,7 @@ def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
   Blocker
     .apply[IO]
     .flatMap(blocker =>
-      ibmMQ.makeContext[IO](
+      ibmMQ.makeJmsClient[IO](
         Config(
           qm = QueueManager("YOUR.QM"),
           endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
