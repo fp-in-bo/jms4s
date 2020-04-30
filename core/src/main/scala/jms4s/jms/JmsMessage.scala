@@ -1,9 +1,10 @@
 package jms4s.jms
 
-import cats.{ ApplicativeError, Show }
 import cats.implicits._
+import cats.{ ApplicativeError, Show }
 import javax.jms.{ Destination, Message, TextMessage }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
+import jms4s.jms.utils.TryUtils._
 
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
@@ -30,42 +31,43 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): Try[Unit] =
     Try(wrapped.setJMSCorrelationIDAsBytes(correlationId))
 
-  val getJMSMessageId: Try[String]                 = Try(wrapped.getJMSMessageID)
-  val getJMSTimestamp: Try[Long]                   = Try(wrapped.getJMSTimestamp)
-  val getJMSCorrelationId: Try[String]             = Try(wrapped.getJMSCorrelationID)
-  val getJMSCorrelationIdAsBytes: Try[Array[Byte]] = Try(wrapped.getJMSCorrelationIDAsBytes)
-  val getJMSReplyTo: Try[Destination]              = Try(wrapped.getJMSReplyTo)
-  val getJMSDestination: Try[Destination]          = Try(wrapped.getJMSDestination)
-  val getJMSDeliveryMode: Try[Int]                 = Try(wrapped.getJMSDeliveryMode)
-  val getJMSRedelivered: Try[Boolean]              = Try(wrapped.getJMSRedelivered)
-  val getJMSType: Try[String]                      = Try(wrapped.getJMSType)
-  val getJMSExpiration: Try[Long]                  = Try(wrapped.getJMSExpiration)
-  val getJMSPriority: Try[Int]                     = Try(wrapped.getJMSPriority)
-  val getJMSDeliveryTime: Try[Long]                = Try(wrapped.getJMSDeliveryTime)
+  val getJMSMessageId: Option[String]     = Try(Option(wrapped.getJMSMessageID)).toOpt
+  val getJMSTimestamp: Option[Long]       = Try(Option(wrapped.getJMSTimestamp)).toOpt
+  val getJMSCorrelationId: Option[String] = Try(Option(wrapped.getJMSCorrelationID)).toOpt
 
-  def getBooleanProperty(name: String): Try[Boolean] =
-    Try(wrapped.getBooleanProperty(name))
+  val getJMSCorrelationIdAsBytes: Option[Array[Byte]] = Try(Option(wrapped.getJMSCorrelationIDAsBytes)).toOpt
+  val getJMSReplyTo: Option[Destination]              = Try(Option(wrapped.getJMSReplyTo)).toOpt
+  val getJMSDestination: Option[Destination]          = Try(Option(wrapped.getJMSDestination)).toOpt
+  val getJMSDeliveryMode: Option[Int]                 = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
+  val getJMSRedelivered: Option[Boolean]              = Try(Option(wrapped.getJMSRedelivered)).toOpt
+  val getJMSType: Option[String]                      = Try(Option(wrapped.getJMSType)).toOpt
+  val getJMSExpiration: Option[Long]                  = Try(Option(wrapped.getJMSExpiration)).toOpt
+  val getJMSPriority: Option[Int]                     = Try(Option(wrapped.getJMSPriority)).toOpt
+  val getJMSDeliveryTime: Option[Long]                = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
 
-  def getByteProperty(name: String): Try[Byte] =
-    Try(wrapped.getByteProperty(name))
+  def getBooleanProperty(name: String): Option[Boolean] =
+    Try(Option(wrapped.getBooleanProperty(name))).toOpt
 
-  def getDoubleProperty(name: String): Try[Double] =
-    Try(wrapped.getDoubleProperty(name))
+  def getByteProperty(name: String): Option[Byte] =
+    Try(Option(wrapped.getByteProperty(name))).toOpt
 
-  def getFloatProperty(name: String): Try[Float] =
-    Try(wrapped.getFloatProperty(name))
+  def getDoubleProperty(name: String): Option[Double] =
+    Try(Option(wrapped.getDoubleProperty(name))).toOpt
 
-  def getIntProperty(name: String): Try[Int] =
-    Try(wrapped.getIntProperty(name))
+  def getFloatProperty(name: String): Option[Float] =
+    Try(Option(wrapped.getFloatProperty(name))).toOpt
 
-  def getLongProperty(name: String): Try[Long] =
-    Try(wrapped.getLongProperty(name))
+  def getIntProperty(name: String): Option[Int] =
+    Try(Option(wrapped.getIntProperty(name))).toOpt
 
-  def getShortProperty(name: String): Try[Short] =
-    Try(wrapped.getShortProperty(name))
+  def getLongProperty(name: String): Option[Long] =
+    Try(Option(wrapped.getLongProperty(name))).toOpt
 
-  def getStringProperty(name: String): Try[String] =
-    Try(wrapped.getStringProperty(name))
+  def getShortProperty(name: String): Option[Short] =
+    Try(Option(wrapped.getShortProperty(name))).toOpt
+
+  def getStringProperty(name: String): Option[String] =
+    Try(Option(wrapped.getStringProperty(name))).toOpt
 
   def setBooleanProperty(name: String, value: Boolean): Try[Unit] = Try(wrapped.setBooleanProperty(name, value))
   def setByteProperty(name: String, value: Byte): Try[Unit]       = Try(wrapped.setByteProperty(name, value))
