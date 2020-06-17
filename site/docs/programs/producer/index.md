@@ -37,7 +37,7 @@ def sendN(
 For each operation, the client has to provide a function that knows how to build a `JmsMessage` given a `MessageFactory`.
 This may appear counter-intuitive at first, but the reason behind this design is that creating a `JmsMessage` is an operation that involves interacting with JMS APIs, and we want to provide a high-level API so that the user can't do things wrong.
 
-A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/master/examples/src/main/scala/ProducerExample.scala).
+A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/main/examples/src/main/scala/ProducerExample.scala).
 
 ### A note on concurrency
 

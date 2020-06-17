@@ -23,4 +23,4 @@ What `handle` expects is a `TransactionAction[F]`, which can be either:
 
 The consumer can be configured specifying a `concurrencyLevel`, which is used internally to scale the operations (receive and then process up to `concurrencyLevel`).
 
-A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/master/examples/src/main/scala/TransactedConsumerExample.scala).
+A complete example is available in the [example project](https://github.com/fp-in-bo/jms4s/blob/main/examples/src/main/scala/TransactedConsumerExample.scala).
