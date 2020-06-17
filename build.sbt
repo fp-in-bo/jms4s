@@ -4,7 +4,7 @@ val ibmMQV               = "9.1.5.0"
 val activeMQV            = "2.12.0"
 val catsEffectV          = "2.1.3"
 val catsEffectScalaTestV = "0.4.0"
-val fs2V                 = "2.3.0"
+val fs2V                 = "2.4.2"
 val log4catsV            = "1.0.1"
 val log4jSlf4jImplV      = "2.13.2"
 
