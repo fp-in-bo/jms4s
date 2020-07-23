@@ -1,6 +1,6 @@
 val catsV                = "2.1.1"
 val jmsV                 = "2.0.1"
-val ibmMQV               = "9.1.5.0"
+val ibmMQV               = "9.2.0.0"
 val activeMQV            = "2.14.0"
 val catsEffectV          = "2.1.4"
 val catsEffectScalaTestV = "0.4.1"
