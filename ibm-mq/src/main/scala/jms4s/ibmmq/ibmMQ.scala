@@ -2,7 +2,7 @@ package jms4s.ibmmq
 
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource }
-import cats.implicits._
+import cats.syntax.all._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import io.chrisdavenport.log4cats.Logger

@@ -1,7 +1,7 @@
 package jms4s.jms
 
 import cats.effect.{ Blocker, ContextShift, Sync }
-import cats.implicits._
+import cats.syntax.all._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.JMSConsumer
 
