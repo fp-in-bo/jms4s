@@ -1,7 +1,7 @@
 package jms4s.jms
 
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
-import cats.implicits._
+import cats.syntax.all._
 import io.chrisdavenport.log4cats.Logger
 import javax.jms.JMSContext
 import jms4s.config.{ DestinationName, QueueName, TopicName }

@@ -1,7 +1,6 @@
 package jms4s.config
 
 import cats.Order
-import cats.implicits._
 
 sealed trait DestinationName        extends Product with Serializable
 case class QueueName(value: String) extends DestinationName

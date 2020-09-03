@@ -1,6 +1,6 @@
 package jms4s.jms
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.{ ApplicativeError, Show }
 import javax.jms.{ Destination, Message, TextMessage }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
