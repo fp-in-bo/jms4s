@@ -23,6 +23,12 @@ Nobody really wants to use jms, but if you have no choice or you're not like us 
 
 - Consuming and Publishing within the same local transaction
 
+## Is it _production ready™_?
+
+You're asking the wrong question.
+
+But yes, this is currenlty used to process millions of messages per day in large scale production systems.
+
 ## [Head on over to the microsite](https://fp-in-bo.github.io/jms4s)
 
 ## Quick Start
