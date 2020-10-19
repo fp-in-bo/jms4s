@@ -60,9 +60,8 @@ object JmsTransactedConsumer {
                         case (message, (name, delay)) =>
                           delay.fold(
                             received.context.send(name, message)
-                          )(d => received.context.send(name, message, d)) *>
-                            pool.commit(received.context, received.consumer, received.messageFactory)
-                      }
+                          )(d => received.context.send(name, message, d))
+                      } *> pool.commit(received.context, received.consumer, received.messageFactory)
                   )
             } yield ()
           )
