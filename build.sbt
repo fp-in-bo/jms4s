@@ -8,7 +8,7 @@ val fs2V                 = "2.4.6"
 val log4catsV            = "1.1.1"
 val log4jSlf4jImplV      = "2.14.0"
 
-val kindProjectorV    = "0.11.1"
+val kindProjectorV    = "0.11.2"
 val betterMonadicForV = "0.3.1"
 
 // Projects
