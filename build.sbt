@@ -1,4 +1,4 @@
-val catsV                = "2.2.0"
+val catsV                = "2.3.0"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.1.0"
 val activeMQV            = "2.16.0"
