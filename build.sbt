@@ -1,14 +1,14 @@
 val catsV                = "2.3.0"
 val jmsV                 = "2.0.1"
-val ibmMQV               = "9.2.0.1"
+val ibmMQV               = "9.2.1.0"
 val activeMQV            = "2.16.0"
 val catsEffectV          = "2.3.0"
-val catsEffectScalaTestV = "0.4.2"
+val catsEffectScalaTestV = "0.5.0"
 val fs2V                 = "2.4.6"
 val log4catsV            = "1.1.1"
 val log4jSlf4jImplV      = "2.14.0"
 
-val kindProjectorV    = "0.11.1"
+val kindProjectorV    = "0.11.2"
 val betterMonadicForV = "0.3.1"
 
 // Projects
