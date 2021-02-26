@@ -5,7 +5,7 @@ val activeMQV            = "2.16.0"
 val catsEffectV          = "2.3.1"
 val catsEffectScalaTestV = "0.5.1"
 val fs2V                 = "2.5.0"
-val log4catsV            = "1.1.1"
+val log4catsV            = "1.2.0"
 val log4jSlf4jImplV      = "2.14.0"
 
 val kindProjectorV    = "0.11.3"
@@ -115,7 +115,7 @@ lazy val commonSettings = Seq(
     "org.typelevel"     %% "cats-effect"                   % catsEffectV,
     "co.fs2"            %% "fs2-core"                      % fs2V,
     "co.fs2"            %% "fs2-io"                        % fs2V,
-    "io.chrisdavenport" %% "log4cats-slf4j"                % log4catsV,
+    "org.typelevel" %% "log4cats-slf4j"                % log4catsV,
     "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
   )
 )
