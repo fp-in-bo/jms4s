@@ -5,7 +5,7 @@ import cats.effect.{ Blocker, Concurrent, ContextShift, Resource }
 import cats.syntax.all._
 import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import jms4s.JmsClient
 import jms4s.jms.JmsContext
 
