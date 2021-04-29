@@ -1,4 +1,4 @@
-val Scala213 = "2.13.1"
+val Scala213 = "2.13.5"
 val Scala212 = "2.12.10"
 
 enablePlugins(SonatypeCiReleasePlugin)
