@@ -1,0 +1,22 @@
+name: Notify Build success
+
+on:
+  workflow_run:
+    workflows: [ "Continuous Integration" ]
+    branches: [ '*' ]
+    types:
+      - completed
+
+jobs:
+  on-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Notify Success
+        run: exit 0
+  on-failure:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - name: Notify Failure
+        run: exit 1
