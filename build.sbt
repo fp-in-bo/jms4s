@@ -1,3 +1,71 @@
+val Scala213 = "2.13.1"
+val Scala212 = "2.12.10"
+
+enablePlugins(SonatypeCiReleasePlugin)
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
+ThisBuild / scalaVersion := Scala213
+ThisBuild / crossScalaVersions := Seq(Scala213, Scala212)
+ThisBuild / organization := "dev.fpinbo"
+ThisBuild / publishFullName := "Alessandro Zoffoli"
+ThisBuild / publishGithubUser := "al333z"
+ThisBuild / githubWorkflowJavaVersions := Seq("adopt@1.8", "adopt@1.11")
+ThisBuild / baseVersion := "0.0.9"
+
+//CI definition
+val MicrositesCond = s"matrix.scala == '$Scala212'"
+
+def micrositeWorkflowSteps(cond: Option[String] = None): List[WorkflowStep] = List(
+  WorkflowStep.Use(
+    UseRef.Public("ruby", "setup-ruby", "v1"),
+    params = Map("ruby-version" -> "2.6"),
+    cond = cond
+  ),
+  WorkflowStep.Run(List("gem update --system"), cond = cond),
+  WorkflowStep.Run(List("gem install sass"), cond = cond),
+  WorkflowStep.Run(List("gem install jekyll -v 4"), cond = cond)
+)
+
+ThisBuild / githubWorkflowBuild := Seq(
+  WorkflowStep
+    .Run(List("docker-compose up --renew-anon-volumes --force-recreate -d"), name = Some("Start docker containers")),
+  WorkflowStep.Sbt(List("test"), name = Some("Test")),
+  WorkflowStep.Run(List("docker-compose down"), name = Some("Stop docker containers"))
+//  WorkflowStep.Sbt(List("mimaReportBinaryIssues"), name = Some("Binary Compatibility Check"))
+)
+
+ThisBuild / githubWorkflowAddedJobs ++= Seq(
+  WorkflowJob(
+    "scalafmt",
+    "Scalafmt",
+    githubWorkflowJobSetup.value.toList ::: List(
+      WorkflowStep.Sbt(List("scalafmtCheckAll"), name = Some("Scalafmt"))
+    ),
+    // Awaiting release of https://github.com/scalameta/scalafmt/pull/2324/files
+    scalas = crossScalaVersions.value.toList.filter(_.startsWith("2."))
+  ),
+  WorkflowJob(
+    "microsite",
+    "Microsite",
+    githubWorkflowJobSetup.value.toList ::: (micrositeWorkflowSteps(None) :+ WorkflowStep
+      .Sbt(List("site/makeMicrosite"), name = Some("Build the microsite"))),
+    scalas = List(Scala212)
+  )
+)
+
+ThisBuild / githubWorkflowTargetBranches := List("*")
+ThisBuild / githubWorkflowTargetTags ++= Seq("v*")
+ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
+
+ThisBuild / githubWorkflowPublish := Seq(
+  WorkflowStep.Sbt(
+    List("release")
+  )
+) ++ micrositeWorkflowSteps(Some(MicrositesCond)).toSeq :+ WorkflowStep.Sbt(
+  List("site/publishMicrosite"),
+  cond = Some(MicrositesCond)
+)
+
 val catsV                = "2.3.1"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.1.0"
@@ -16,16 +84,17 @@ lazy val jms4s = project
   .in(file("."))
   .enablePlugins(NoPublishPlugin)
   .aggregate(core, ibmMQ, activeMQArtemis, tests, examples, site)
+  .settings(commonSettings, releaseSettings)
 
 lazy val core = project
   .in(file("core"))
-  .settings(commonSettings)
+  .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s")
   .settings(parallelExecution in Test := false)
 
 lazy val ibmMQ = project
   .in(file("ibm-mq"))
-  .settings(commonSettings)
+  .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-ibm-mq")
   .settings(libraryDependencies += "com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV)
   .settings(parallelExecution in Test := false)
@@ -33,7 +102,7 @@ lazy val ibmMQ = project
 
 lazy val activeMQArtemis = project
   .in(file("active-mq-artemis"))
-  .settings(commonSettings)
+  .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-active-mq-artemis")
   .settings(libraryDependencies += "org.apache.activemq" % "artemis-jms-client-all" % activeMQV)
   .settings(parallelExecution in Test := false)
@@ -41,7 +110,7 @@ lazy val activeMQArtemis = project
 
 lazy val tests = project
   .in(file("tests"))
-  .settings(commonSettings: _*)
+  .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
   .settings(parallelExecution in Test := false)
@@ -49,7 +118,7 @@ lazy val tests = project
 
 lazy val examples = project
   .in(file("examples"))
-  .settings(commonSettings: _*)
+  .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .dependsOn(ibmMQ, activeMQArtemis)
 
@@ -104,8 +173,6 @@ lazy val site = project
 
 // General Settings
 lazy val commonSettings = Seq(
-  scalaVersion := "2.13.1",
-  crossScalaVersions := Seq(scalaVersion.value, "2.12.13"),
   scalafmtOnCompile := true,
   addCompilerPlugin("org.typelevel" %% "kind-projector"     % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
@@ -120,26 +187,17 @@ lazy val commonSettings = Seq(
   )
 )
 
-// General Settings
-inThisBuild(
-  List(
-    organization := "dev.fpinbo",
+lazy val releaseSettings = {
+  Seq(
+    Test / publishArtifact := false,
+    homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
+    //   licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
     developers := List(
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
       Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti"))
-    ),
-    homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
-    licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
-    pomIncludeRepository := { _ => false },
-    scalacOptions in (Compile, doc) ++= Seq(
-      "-groups",
-      "-sourcepath",
-      (baseDirectory in LocalRootProject).value.getAbsolutePath,
-      "-doc-source-url",
-      "https://github.com/fp-in-bo/jms4s/blob/v" + version.value + "€{FILE_PATH}.scala"
     )
   )
-)
+}
 
 addCommandAlias("buildAll", ";clean;scalafmtAll;+test;mdoc")
