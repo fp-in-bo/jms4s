@@ -225,3 +225,15 @@ jobs:
 
       - name: Build the microsite
         run: sbt ++${{ matrix.scala }} site/makeMicrosite
+
+  build-success:
+    name: Build Success
+    needs: [build, scalafmt, microsite]
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        scala: [2.13.4]
+        java: [adopt@1.8]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - run: echo Build Succeded

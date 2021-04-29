@@ -50,6 +50,17 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     githubWorkflowJobSetup.value.toList ::: (micrositeWorkflowSteps(None) :+ WorkflowStep
       .Sbt(List("site/makeMicrosite"), name = Some("Build the microsite"))),
     scalas = List(Scala212)
+  ),
+  WorkflowJob( //This step is to collect the entire build outcome since mergify is not acting properly with githubactions.
+    id = "build-success",
+    name = "Build Success",
+    needs = List("build", "scalafmt", "microsite"),
+    steps = List(WorkflowStep.Run(List("echo Build Succeded"))),
+    oses = List("ubuntu-latest"),
+    //These are useless but we don't know how to remove the scalas and javas attributes
+    // (if you provide empty list it will create an empty list in the yml which is wrong)
+    scalas = List("2.13.4"),
+    javas = List("adopt@1.8")
   )
 )
 
