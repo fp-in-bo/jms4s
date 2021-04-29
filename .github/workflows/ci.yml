@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.1, 2.12.10]
+        scala: [2.13.1, 2.12.13]
         java: [adopt@1.8, adopt@1.11]
     runs-on: ${{ matrix.os }}
     steps:
@@ -131,21 +131,21 @@ jobs:
 
       - run: sbt ++${{ matrix.scala }} release
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.13'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 2.6
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.13'
         run: gem update --system
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.13'
         run: gem install sass
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.13'
         run: gem install jekyll -v 4
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.13'
         run: sbt ++${{ matrix.scala }} site/publishMicrosite
 
   scalafmt:
@@ -153,7 +153,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.1, 2.12.10]
+        scala: [2.13.1, 2.12.13]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -187,7 +187,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.12.10]
+        scala: [2.12.13]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
