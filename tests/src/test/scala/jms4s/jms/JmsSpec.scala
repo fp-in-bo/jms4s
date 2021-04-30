@@ -3,7 +3,7 @@ package jms4s.jms
 import java.util.concurrent.TimeUnit
 
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource, Timer }
+import cats.effect.{ IO, Resource }
 import cats.implicits._
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.DestinationName
@@ -11,6 +11,7 @@ import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
 import scala.concurrent.duration._
+import cats.effect.Temporal
 
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
@@ -36,10 +37,10 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     contexts(inputQueueName).use {
       case (consumer, sendContext, msg) =>
         for {
-          producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          producerTimestamp <- Temporal[IO].clock.realTime(TimeUnit.MILLISECONDS)
           _                 <- sendContext.send(inputQueueName, msg, delay)
           msg               <- consumer.receiveJmsMessage
-          deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          deliveryTime      <- Temporal[IO].clock.realTime(TimeUnit.MILLISECONDS)
           actualBody        <- msg.asTextF[IO]
           actualDelay       = (deliveryTime - producerTimestamp).millis
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)

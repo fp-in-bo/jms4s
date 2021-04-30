@@ -1,7 +1,7 @@
 package jms4s.basespec.providers
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, ContextShift, IO, Resource }
+import cats.effect.{ IO, Resource }
 import jms4s.JmsClient
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.ibmmq.ibmMQ
@@ -9,7 +9,7 @@ import jms4s.ibmmq.ibmMQ._
 
 trait IbmMQBaseSpec extends Jms4sBaseSpec {
 
-  override def jmsClientRes(implicit cs: ContextShift[IO]): Resource[IO, JmsClient[IO]] =
+  override def jmsClientRes: Resource[IO, JmsClient[IO]] =
     Blocker
       .apply[IO]
       .flatMap(blocker =>

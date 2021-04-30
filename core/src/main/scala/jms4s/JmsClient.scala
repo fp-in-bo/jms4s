@@ -16,7 +16,7 @@
 
 package jms4s
 
-import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.effect.{ Concurrent, Resource }
 import jms4s.config.DestinationName
 import jms4s.jms._
 

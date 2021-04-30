@@ -17,7 +17,7 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.effect.{ Concurrent, Resource }
 import cats.syntax.all._
 import fs2.concurrent.Queue
 import jms4s.config.DestinationName

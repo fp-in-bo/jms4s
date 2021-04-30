@@ -1,8 +1,7 @@
 package jms4s.basespec
 
 import cats.data.NonEmptyList
-import cats.effect.concurrent.Ref
-import cats.effect.{ Concurrent, ContextShift, IO, Resource }
+import cats.effect.{ Concurrent, IO, Resource }
 import cats.implicits._
 import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -12,6 +11,7 @@ import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
+import cats.effect.Ref
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
@@ -43,7 +43,7 @@ trait Jms4sBaseSpec {
     consumer: JmsMessageConsumer[IO],
     received: Ref[IO, Set[String]],
     nMessages: Int
-  )(implicit F: Concurrent[IO]): IO[Set[String]] =
+  ): IO[Set[String]] =
     receiveBodyAsTextOrFail(consumer)
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)

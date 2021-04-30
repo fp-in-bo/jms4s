@@ -18,7 +18,7 @@ package jms4s
 
 import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, Resource, Sync }
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.Queue
@@ -55,9 +55,7 @@ object JmsAcknowledgerConsumer {
 
   private def build[F[_]: ContextShift: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
-    concurrencyLevel: Int,
-    blocker: Blocker
-  ): JmsAcknowledgerConsumer[F] =
+    concurrencyLevel: Int): JmsAcknowledgerConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
@@ -68,7 +66,7 @@ object JmsAcknowledgerConsumer {
               message                       <- consumer.receiveJmsMessage
               res                           <- f(message, mFactory)
               _ <- res.fold(
-                    ifAck = blocker.delay(message.wrapped.acknowledge()),
+                    ifAck = Sync[F].blocking(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
                       send.messages.messagesAndDestinations.traverse_ {
@@ -76,7 +74,7 @@ object JmsAcknowledgerConsumer {
                           delay.fold(ifEmpty = context.send(name, message))(
                             f = d => context.send(name, message, d)
                           )
-                      } *> blocker.delay(message.wrapped.acknowledge())
+                      } *> Sync[F].blocking(message.wrapped.acknowledge())
                   )
               _ <- pool.enqueue1((context, consumer, mFactory))
             } yield ()

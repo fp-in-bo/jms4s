@@ -2,9 +2,8 @@ package jms4s
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect.concurrent.Ref
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource, Timer }
+import cats.effect.{ IO, Resource }
 import cats.implicits._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
@@ -15,6 +14,7 @@ import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
 import scala.concurrent.duration._
+import cats.effect.{ Ref, Temporal }
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
@@ -379,12 +379,12 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     res.use {
       case (producer, consumer, message) =>
         for {
-          producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          producerTimestamp <- Temporal[IO].clock.realTime(TimeUnit.MILLISECONDS)
           _                 <- producer.sendWithDelay(messageWithDelayFactory((message, (outputQueueName1, Some(delay)))))
           _                 <- logger.info(s"Pushed message with body: $body.")
           _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
           receivedMessage   <- receiveMessage(consumer).timeout(timeout)
-          deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          deliveryTime      <- Temporal[IO].clock.realTime(TimeUnit.MILLISECONDS)
           actualBody        <- receivedMessage.asTextF[IO]
           actualDelay       = (deliveryTime - producerTimestamp).millis
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
