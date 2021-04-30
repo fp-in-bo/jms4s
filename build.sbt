@@ -7,6 +7,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala212)
 ThisBuild / organization := "dev.fpinbo"
+ThisBuild / organizationName := "Functional Programming in Bologna"
 ThisBuild / publishFullName := "Alessandro Zoffoli"
 ThisBuild / publishGithubUser := "al333z"
 ThisBuild / githubWorkflowJavaVersions := Seq("adopt@1.8", "adopt@1.11")
@@ -101,14 +102,14 @@ lazy val core = project
   .in(file("core"))
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s")
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
 
 lazy val ibmMQ = project
   .in(file("ibm-mq"))
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-ibm-mq")
   .settings(libraryDependencies += "com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
 lazy val activeMQArtemis = project
@@ -116,7 +117,7 @@ lazy val activeMQArtemis = project
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-active-mq-artemis")
   .settings(libraryDependencies += "org.apache.activemq" % "artemis-jms-client-all" % activeMQV)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
 lazy val tests = project
@@ -124,7 +125,7 @@ lazy val tests = project
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(ibmMQ, activeMQArtemis)
 
 lazy val examples = project
@@ -152,7 +153,7 @@ lazy val site = project
       micrositeFooterText := None,
       micrositeGitterChannel := false,
       micrositeCompilingDocsTool := WithMdoc,
-      scalacOptions in Tut --= Seq(
+      Tut / scalacOptions --= Seq(
         "-Xfatal-warnings",
         "-Ywarn-unused-import",
         "-Ywarn-unused:imports",
@@ -202,7 +203,14 @@ lazy val releaseSettings = {
   Seq(
     Test / publishArtifact := false,
     homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
-    //   licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+    startYear := Some(2020),
+    licenses := Seq("MIT" -> url("http://opensource.org/licenses/MIT")),
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/fp-in-bo/jms4s"),
+        "git@github.com:fp-in-bo/jms4s.git"
+      )
+    ),
     developers := List(
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
