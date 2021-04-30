@@ -1,7 +1,8 @@
 pull_request_rules:
   - name: automatically merge scala-steward's PRs
     conditions:
-      - author=scala-steward
+      - head~=^update/
+      #- author=scala-steward
       - status-success=Build Success (ubuntu-latest, 2.13.4, adopt@1.8)
     actions:
       merge:
