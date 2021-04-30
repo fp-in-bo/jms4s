@@ -3,6 +3,7 @@ val Scala212 = "2.12.10"
 
 enablePlugins(SonatypeCiReleasePlugin)
 Global / onChangedBuildSource := ReloadOnSourceChanges
+Global / mimaFailOnNoPrevious := false
 
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala212)
