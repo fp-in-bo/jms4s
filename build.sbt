@@ -7,6 +7,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala212)
 ThisBuild / organization := "dev.fpinbo"
+ThisBuild / organizationName := "Functional Programming in Bologna"
 ThisBuild / publishFullName := "Alessandro Zoffoli"
 ThisBuild / publishGithubUser := "al333z"
 ThisBuild / githubWorkflowJavaVersions := Seq("adopt@1.8", "adopt@1.11")
@@ -202,7 +203,14 @@ lazy val releaseSettings = {
   Seq(
     Test / publishArtifact := false,
     homepage := Some(url("https://github.com/fp-in-bo/jms4s")),
-    //   licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+    startYear := Some(2020),
+    licenses := Seq("MIT" -> url("http://opensource.org/licenses/MIT")),
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/fp-in-bo/jms4s"),
+        "git@github.com:fp-in-bo/jms4s.git"
+      )
+    ),
     developers := List(
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
