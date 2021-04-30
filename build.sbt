@@ -79,7 +79,7 @@ ThisBuild / githubWorkflowPublish := Seq(
 
 val catsV                = "2.3.1"
 val jmsV                 = "2.0.1"
-val ibmMQV               = "9.2.1.0"
+val ibmMQV               = "9.2.2.0"
 val activeMQV            = "2.16.0"
 val catsEffectV          = "2.3.3"
 val catsEffectScalaTestV = "0.5.1"
