@@ -22,10 +22,10 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, Resource, Sync }
+import cats.effect.std.Queue
+import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
 import fs2.Stream
-import fs2.concurrent.Queue
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction.Send
 import jms4s.config.DestinationName
@@ -40,7 +40,7 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 
 object JmsAutoAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Concurrent](
+  private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
@@ -53,12 +53,12 @@ object JmsAutoAcknowledgerConsumer {
             for {
               ctx      <- context.createContext(SessionType.AutoAcknowledge)
               consumer <- ctx.createJmsConsumer(inputDestinationName)
-              _        <- Resource.eval(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
+              _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
     } yield build(pool, concurrencyLevel)
 
-  private def build[F[_]: Concurrent](
+  private def build[F[_]: Async](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
     concurrencyLevel: Int
   ): JmsAutoAcknowledgerConsumer[F] =
@@ -68,7 +68,7 @@ object JmsAutoAcknowledgerConsumer {
         .as(
           Stream.eval(
             for {
-              (context, consumer, mf) <- pool.dequeue1
+              (context, consumer, mf) <- pool.take
               message                 <- consumer.receiveJmsMessage
               res: AutoAckAction[F]   <- f(message, mf)
               _ <- res.fold(
@@ -83,7 +83,7 @@ object JmsAutoAcknowledgerConsumer {
                           )
                       }
                   )
-              _ <- pool.enqueue1((context, consumer, mf))
+              _ <- pool.offer((context, consumer, mf))
             } yield ()
           )
         )

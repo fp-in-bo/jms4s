@@ -21,21 +21,21 @@
 
 package jms4s.jms
 
-import cats.effect.{ Blocker, ContextShift, Sync }
+import cats.effect.Sync
 import cats.syntax.all._
+
 import javax.jms.JMSConsumer
 
-class JmsMessageConsumer[F[_]: ContextShift: Sync] private[jms4s] (
-  private[jms4s] val wrapped: JMSConsumer,
-  private[jms4s] val blocker: Blocker
+class JmsMessageConsumer[F[_]: Sync] private[jms4s] (
+  private[jms4s] val wrapped: JMSConsumer
 ) {
 
   val receiveJmsMessage: F[JmsMessage] =
     for {
-      recOpt <- blocker.delay(Option(wrapped.receiveNoWait()))
+      recOpt <- Sync[F].blocking(Option(wrapped.receiveNoWait()))
       rec <- recOpt match {
               case Some(message) => Sync[F].pure(new JmsMessage(message))
-              case None          => ContextShift[F].shift >> receiveJmsMessage
+              case None          => receiveJmsMessage //todo check shift
             }
     } yield rec
 }
