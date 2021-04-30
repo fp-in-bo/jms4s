@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Alessandro Zoffoli
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jms4s
 
 import cats.Functor
@@ -25,14 +41,14 @@ object JmsAcknowledgerConsumer {
     concurrencyLevel: Int
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
     for {
-      pool <- Resource.liftF(
+      pool <- Resource.eval(
                Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               ctx      <- context.createContext(SessionType.ClientAcknowledge)
               consumer <- ctx.createJmsConsumer(inputDestinationName)
-              _        <- Resource.liftF(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
+              _        <- Resource.eval(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
     } yield build(pool, concurrencyLevel, context.blocker)
