@@ -3,7 +3,8 @@ val Scala212 = "2.12.10"
 
 enablePlugins(SonatypeCiReleasePlugin)
 Global / onChangedBuildSource := ReloadOnSourceChanges
-Global / mimaFailOnNoPrevious := false
+ThisBuild / mimaFailOnProblem := false
+ThisBuild / mimaFailOnNoPrevious := false
 
 ThisBuild / scalaVersion := Scala213
 ThisBuild / crossScalaVersions := Seq(Scala213, Scala212)
@@ -12,7 +13,7 @@ ThisBuild / organizationName := "Functional Programming in Bologna"
 ThisBuild / publishFullName := "Alessandro Zoffoli"
 ThisBuild / publishGithubUser := "al333z"
 ThisBuild / githubWorkflowJavaVersions := Seq("adopt@1.8", "adopt@1.11")
-ThisBuild / baseVersion := "0.0.9"
+ThisBuild / baseVersion := "0.0.1"
 
 //CI definition
 val MicrositesCond = s"matrix.scala == '$Scala212'"
