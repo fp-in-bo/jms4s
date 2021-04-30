@@ -102,14 +102,14 @@ lazy val core = project
   .in(file("core"))
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s")
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
 
 lazy val ibmMQ = project
   .in(file("ibm-mq"))
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-ibm-mq")
   .settings(libraryDependencies += "com.ibm.mq" % "com.ibm.mq.allclient" % ibmMQV)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
 lazy val activeMQArtemis = project
@@ -117,7 +117,7 @@ lazy val activeMQArtemis = project
   .settings(commonSettings, releaseSettings)
   .settings(name := "jms4s-active-mq-artemis")
   .settings(libraryDependencies += "org.apache.activemq" % "artemis-jms-client-all" % activeMQV)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
 lazy val tests = project
@@ -125,7 +125,7 @@ lazy val tests = project
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
-  .settings(parallelExecution in Test := false)
+  .settings(Test / parallelExecution := false)
   .dependsOn(ibmMQ, activeMQArtemis)
 
 lazy val examples = project
@@ -153,7 +153,7 @@ lazy val site = project
       micrositeFooterText := None,
       micrositeGitterChannel := false,
       micrositeCompilingDocsTool := WithMdoc,
-      scalacOptions in Tut --= Seq(
+      Tut / scalacOptions --= Seq(
         "-Xfatal-warnings",
         "-Ywarn-unused-import",
         "-Ywarn-unused:imports",
