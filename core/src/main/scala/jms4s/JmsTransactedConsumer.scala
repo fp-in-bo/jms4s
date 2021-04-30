@@ -23,7 +23,7 @@ package jms4s
 
 import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.effect.{ Concurrent, Resource }
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.Queue

@@ -22,12 +22,13 @@
 package jms4s.activemq
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource }
+import cats.effect.{ Concurrent, Resource }
 import cats.syntax.all._
 import io.chrisdavenport.log4cats.Logger
 import jms4s.JmsClient
 import jms4s.jms.JmsContext
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory
+import cats.effect.Sync
 
 object activeMQ {
 
@@ -43,13 +44,11 @@ object activeMQ {
   case class ClientId(value: String) extends AnyVal
 
   def makeJmsClient[F[_]: ContextShift: Logger: Concurrent](
-    config: Config,
-    blocker: Blocker
-  ): Resource[F, JmsClient[F]] =
+    config: Config): Resource[F, JmsClient[F]] =
     for {
       context <- Resource.make(
                   Logger[F].info(s"Opening context to MQ at ${hosts(config.endpoints)}...") *>
-                    blocker.delay {
+                    Sync[F].blocking {
                       val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
                       factory.setClientID(config.clientId.value)
 
@@ -59,7 +58,7 @@ object activeMQ {
                     }
                 )(c =>
                   Logger[F].info(s"Closing context $c to MQ at ${hosts(config.endpoints)}...") *>
-                    blocker.delay(c.close()) *>
+                    Sync[F].blocking(c.close()) *>
                     Logger[F].info(s"Closed context $c to MQ at ${hosts(config.endpoints)}.")
                 )
       _ <- Resource.eval(Logger[F].info(s"Opened context $context."))
