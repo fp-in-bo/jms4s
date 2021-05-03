@@ -21,7 +21,7 @@
 
 package jms4s.jms
 
-import cats.effect.{ Resource, Sync }
+import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
@@ -32,7 +32,7 @@ import org.typelevel.log4cats.Logger
 import javax.jms.JMSContext
 import scala.concurrent.duration.FiniteDuration
 
-class JmsContext[F[_]: Sync: Logger](
+class JmsContext[F[_]: Async: Logger](
   private val context: JMSContext
 ) {
 

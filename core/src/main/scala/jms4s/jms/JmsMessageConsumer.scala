@@ -21,12 +21,12 @@
 
 package jms4s.jms
 
-import cats.effect.Sync
+import cats.effect.{ Async, Spawn, Sync }
 import cats.syntax.all._
 
 import javax.jms.JMSConsumer
 
-class JmsMessageConsumer[F[_]: Sync] private[jms4s] (
+class JmsMessageConsumer[F[_]: Async] private[jms4s] (
   private[jms4s] val wrapped: JMSConsumer
 ) {
 
@@ -35,7 +35,7 @@ class JmsMessageConsumer[F[_]: Sync] private[jms4s] (
       recOpt <- Sync[F].blocking(Option(wrapped.receiveNoWait()))
       rec <- recOpt match {
               case Some(message) => Sync[F].pure(new JmsMessage(message))
-              case None          => receiveJmsMessage //todo check shift
+              case None          => Spawn[F].cede >> receiveJmsMessage
             }
     } yield rec
 }
