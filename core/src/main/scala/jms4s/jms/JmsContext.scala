@@ -32,7 +32,7 @@ import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsContext[F[_]: Sync: Logger: ContextShift: Concurrent](
+class JmsContext[F[_]: Logger: ContextShift: Concurrent](
   private val context: JMSContext,
   private[jms4s] val blocker: Blocker
 ) {

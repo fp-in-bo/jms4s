@@ -21,9 +21,8 @@
 
 package jms4s
 
-import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource, Sync }
+import cats.effect.{ Concurrent, Resource, Sync }
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.Queue
@@ -41,7 +40,7 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 
 object JmsAutoAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: ContextShift: Concurrent](
+  private[jms4s] def make[F[_]: Concurrent](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
@@ -59,7 +58,7 @@ object JmsAutoAcknowledgerConsumer {
           }
     } yield build(pool, concurrencyLevel)
 
-  private def build[F[_]: ContextShift: Concurrent](
+  private def build[F[_]: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
     concurrencyLevel: Int
   ): JmsAutoAcknowledgerConsumer[F] =
@@ -115,12 +114,12 @@ object JmsAutoAcknowledgerConsumer {
 
     def noOp[F[_]]: NoOp[F] = NoOp[F]()
 
-    def sendN[F[_]: Functor](
+    def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]: Functor](
+    def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))

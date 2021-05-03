@@ -35,7 +35,7 @@ trait ActiveMQArtemisBaseSpec extends Jms4sBaseSpec {
   override def jmsClientRes(implicit cs: ContextShift[IO]): Resource[IO, JmsClient[IO]] =
     for {
       blocker <- Blocker.apply[IO]
-      rnd     <- Resource.eval(IO(Random.nextInt))
+      rnd     <- Resource.eval(IO(Random.nextInt()))
       client <- activeMQ.makeJmsClient[IO](
                  Config(
                    endpoints = NonEmptyList.one(Endpoint("localhost", 61616)),

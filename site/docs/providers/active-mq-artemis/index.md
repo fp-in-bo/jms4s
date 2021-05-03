@@ -7,14 +7,15 @@ title:  "Active MQ Artemis"
 
 Creating a jms context for an Active MQ Artemis cluster is as easy as:
 
-```scala
+```scala mdoc
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, ContextShift, IO, Resource }
 import jms4s.activemq.activeMQ
 import jms4s.activemq.activeMQ._
-import jms4s.jms.JmsContext
+import io.chrisdavenport.log4cats.Logger
+import jms4s.JmsClient
 
-override def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
+def jmsClientResource(implicit CS: ContextShift[IO], L: Logger[IO]): Resource[IO, JmsClient[IO]] =
   Blocker
     .apply[IO]
     .flatMap(blocker =>

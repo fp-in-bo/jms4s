@@ -21,7 +21,6 @@
 
 package jms4s
 
-import cats.Functor
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
 import cats.syntax.all._
@@ -121,12 +120,12 @@ object JmsAcknowledgerConsumer {
 
     def noAck[F[_]]: AckAction[F] = NoAck()
 
-    def sendN[F[_]: Functor](
+    def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]: Functor](
+    def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] = Send[F](ToSend(messages))
 
@@ -137,7 +136,7 @@ object JmsAcknowledgerConsumer {
     ): Send[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]: Functor](message: JmsMessage, destination: DestinationName): Send[F] =
+    def send[F[_]](message: JmsMessage, destination: DestinationName): Send[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }
