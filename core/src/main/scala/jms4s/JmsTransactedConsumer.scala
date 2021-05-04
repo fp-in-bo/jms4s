@@ -21,9 +21,8 @@
 
 package jms4s
 
-import cats.Functor
 import cats.data.NonEmptyList
-import cats.effect.{ Concurrent, ContextShift, Resource }
+import cats.effect.{ Concurrent, Resource }
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.Queue
@@ -41,7 +40,7 @@ trait JmsTransactedConsumer[F[_]] {
 
 object JmsTransactedConsumer {
 
-  private[jms4s] def make[F[_]: ContextShift: Concurrent](
+  private[jms4s] def make[F[_]: Concurrent](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
@@ -60,7 +59,7 @@ object JmsTransactedConsumer {
             )
     } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel)
 
-  private def build[F[_]: ContextShift: Concurrent](
+  private def build[F[_]: Concurrent](
     pool: JmsTransactedConsumerPool[F],
     concurrencyLevel: Int
   ): JmsTransactedConsumer[F] = new JmsTransactedConsumer[F] {
@@ -93,7 +92,7 @@ object JmsTransactedConsumer {
         .drain
   }
 
-  private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent: ContextShift](
+  private[jms4s] class JmsTransactedConsumerPool[F[_]: Concurrent](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
   ) {
 
@@ -154,10 +153,10 @@ object JmsTransactedConsumer {
 
     def rollback[F[_]]: TransactionAction[F] = Rollback[F]()
 
-    def sendN[F[_]: Functor](messages: NonEmptyList[(JmsMessage, DestinationName)]): Send[F] =
+    def sendN[F[_]](messages: NonEmptyList[(JmsMessage, DestinationName)]): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]: Functor](
+    def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): Send[F] =
       Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))

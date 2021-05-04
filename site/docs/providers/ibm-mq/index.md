@@ -7,14 +7,15 @@ title:  "IBM MQ"
 
 Creating a jms context for an IBM MQ queue manager is as easy as:
 
-```scala
+```scala mdoc
 import cats.data.NonEmptyList
 import cats.effect.{ Blocker, ContextShift, IO, Resource }
 import jms4s.ibmmq.ibmMQ
 import jms4s.ibmmq.ibmMQ._
-import jms4s.jms.JmsContext
+import io.chrisdavenport.log4cats.Logger
+import jms4s.JmsClient
 
-def contextRes(implicit cs: ContextShift[IO]): Resource[IO, JmsContext[IO]] =
+def jmsClientResource(implicit CS: ContextShift[IO], L: Logger[IO]): Resource[IO, JmsClient[IO]] =
   Blocker
     .apply[IO]
     .flatMap(blocker =>

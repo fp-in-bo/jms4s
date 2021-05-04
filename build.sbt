@@ -1,4 +1,4 @@
-val Scala213 = "2.13.1"
+val Scala213 = "2.13.5"
 val Scala212 = "2.12.10"
 
 enablePlugins(SonatypeCiReleasePlugin)
@@ -154,8 +154,7 @@ lazy val site = project
       micrositeBaseUrl := "/jms4s",
       micrositeFooterText := None,
       micrositeGitterChannel := false,
-      micrositeCompilingDocsTool := WithMdoc,
-      Tut / scalacOptions --= Seq(
+      scalacOptions --= Seq(
         "-Xfatal-warnings",
         "-Ywarn-unused-import",
         "-Ywarn-unused:imports",
@@ -216,6 +215,7 @@ lazy val releaseSettings = {
     developers := List(
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
+      Developer("faustin0", "Fausto Di Natale", "dinatalefausto@gmail.com", url("https://github.com/faustin0")),
       Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti"))
     )
   )
