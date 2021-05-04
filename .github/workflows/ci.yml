@@ -131,23 +131,6 @@ jobs:
 
       - run: sbt ++${{ matrix.scala }} release
 
-      - if: matrix.scala == '2.12.10'
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 2.6
-
-      - if: matrix.scala == '2.12.10'
-        run: gem update --system
-
-      - if: matrix.scala == '2.12.10'
-        run: gem install sass
-
-      - if: matrix.scala == '2.12.10'
-        run: gem install jekyll -v 4
-
-      - if: matrix.scala == '2.12.10'
-        run: sbt ++${{ matrix.scala }} site/publishMicrosite
-
   scalafmt:
     name: Scalafmt
     strategy:
@@ -232,8 +215,45 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.4]
+        scala: [2.13.5]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
       - run: echo Build Succeded
+
+  site:
+    name: Deploy site
+    needs: [build, microsite]
+    if: always() && needs.build.result == 'success' && needs.microsite.result == 'success' && (github.ref == 'refs/heads/main')
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        scala: [2.13.5]
+        java: [adopt@1.8, adopt@1.11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Download target directories (2.13.5)
+        uses: actions/download-artifact@v2
+        with:
+          name: target-${{ matrix.os }}-2.13.5-${{ matrix.java }}
+
+      - name: Inflate target directories (2.13.5)
+        run: |
+          tar xf targets.tar
+          rm targets.tar
+
+      - name: Download target directories (2.12.10)
+        uses: actions/download-artifact@v2
+        with:
+          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}
+
+      - name: Inflate target directories (2.12.10)
+        run: |
+          tar xf targets.tar
+          rm targets.tar
+
+      - name: Deploy site
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          publish_dir: ./site/target/site
+          github_token: ${{ secrets.GITHUB_TOKEN }}

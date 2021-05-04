@@ -62,7 +62,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     oses = List("ubuntu-latest"),
     //These are useless but we don't know how to remove the scalas and javas attributes
     // (if you provide empty list it will create an empty list in the yml which is wrong)
-    scalas = List("2.13.4"),
+    scalas = List(Scala213),
     javas = List("adopt@1.8")
   )
 )
@@ -75,9 +75,29 @@ ThisBuild / githubWorkflowPublish := Seq(
   WorkflowStep.Sbt(
     List("release")
   )
-) ++ micrositeWorkflowSteps(Some(MicrositesCond)).toSeq :+ WorkflowStep.Sbt(
-  List("site/publishMicrosite"),
-  cond = Some(MicrositesCond)
+)
+
+ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
+  id = "site",
+  name = "Deploy site",
+  needs = List("build", "microsite"),
+  javas = (ThisBuild / githubWorkflowJavaVersions).value.toList,
+  scalas = (ThisBuild / scalaVersion).value :: Nil,
+  cond = """
+           | always() &&
+           | needs.build.result == 'success' &&
+           | needs.microsite.result == 'success' &&
+           | (github.ref == 'refs/heads/main')
+  """.stripMargin.trim.linesIterator.mkString.some,
+  steps = githubWorkflowGeneratedDownloadSteps.value.toList :+
+    WorkflowStep.Use(
+      UseRef.Public("peaceiris", "actions-gh-pages", "v3"),
+      name = Some(s"Deploy site"),
+      params = Map(
+        "publish_dir"  -> "./site/target/site",
+        "github_token" -> "${{ secrets.GITHUB_TOKEN }}"
+      )
+    )
 )
 
 val catsV                = "2.6.0"
