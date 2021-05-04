@@ -1,5 +1,7 @@
 val Scala213 = "2.13.5"
 val Scala212 = "2.12.10"
+val Java18   = "adopt@1.8"
+val Java11   = "adopt@1.11"
 
 enablePlugins(SonatypeCiReleasePlugin)
 Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -12,7 +14,7 @@ ThisBuild / organization := "dev.fpinbo"
 ThisBuild / organizationName := "Functional Programming in Bologna"
 ThisBuild / publishFullName := "Alessandro Zoffoli"
 ThisBuild / publishGithubUser := "al333z"
-ThisBuild / githubWorkflowJavaVersions := Seq("adopt@1.8", "adopt@1.11")
+ThisBuild / githubWorkflowJavaVersions := Seq(Java18, Java11)
 ThisBuild / baseVersion := "0.0.1"
 
 //CI definition
@@ -63,7 +65,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     //These are useless but we don't know how to remove the scalas and javas attributes
     // (if you provide empty list it will create an empty list in the yml which is wrong)
     scalas = List(Scala213),
-    javas = List("adopt@1.8")
+    javas = List(Java18)
   )
 )
 
@@ -81,8 +83,8 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
   id = "site",
   name = "Deploy site",
   needs = List("build", "microsite"),
-  javas = (ThisBuild / githubWorkflowJavaVersions).value.toList,
-  scalas = (ThisBuild / scalaVersion).value :: Nil,
+  javas = List(Java11),
+  scalas = List(Scala213),
   cond = """
            | always() &&
            | needs.build.result == 'success' &&
@@ -95,7 +97,8 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
       name = Some(s"Deploy site"),
       params = Map(
         "publish_dir"  -> "./site/target/site",
-        "github_token" -> "${{ secrets.GITHUB_TOKEN }}"
+        "github_token" -> "${{ secrets.GITHUB_TOKEN }}",
+        "keep_files"   -> "true"
       )
     )
 )
