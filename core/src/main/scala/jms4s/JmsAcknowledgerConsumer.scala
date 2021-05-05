@@ -22,10 +22,10 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.{ Blocker, Concurrent, ContextShift, Resource, Sync }
+import cats.effect.std.Queue
+import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
 import fs2.Stream
-import fs2.concurrent.Queue
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.config.DestinationName
 import jms4s.jms._
@@ -39,7 +39,7 @@ trait JmsAcknowledgerConsumer[F[_]] {
 
 object JmsAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: ContextShift: Concurrent](
+  private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int
@@ -52,27 +52,26 @@ object JmsAcknowledgerConsumer {
             for {
               ctx      <- context.createContext(SessionType.ClientAcknowledge)
               consumer <- ctx.createJmsConsumer(inputDestinationName)
-              _        <- Resource.eval(pool.enqueue1((ctx, consumer, MessageFactory[F](ctx))))
+              _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel, context.blocker)
+    } yield build(pool, concurrencyLevel)
 
-  private def build[F[_]: ContextShift: Concurrent](
+  private def build[F[_]: Async](
     pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
-    concurrencyLevel: Int,
-    blocker: Blocker
+    concurrencyLevel: Int
   ): JmsAcknowledgerConsumer[F] =
-    (f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) =>
+    (f: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) => {
       Stream
         .emits(0 until concurrencyLevel)
         .as(
           Stream.eval(
             for {
-              (context, consumer, mFactory) <- pool.dequeue1
+              (context, consumer, mFactory) <- pool.take
               message                       <- consumer.receiveJmsMessage
               res                           <- f(message, mFactory)
               _ <- res.fold(
-                    ifAck = blocker.delay(message.wrapped.acknowledge()),
+                    ifAck = Sync[F].blocking(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
                       send.messages.messagesAndDestinations.traverse_ {
@@ -80,9 +79,9 @@ object JmsAcknowledgerConsumer {
                           delay.fold(ifEmpty = context.send(name, message))(
                             f = d => context.send(name, message, d)
                           )
-                      } *> blocker.delay(message.wrapped.acknowledge())
+                      } *> Sync[F].blocking(message.wrapped.acknowledge())
                   )
-              _ <- pool.enqueue1((context, consumer, mFactory))
+              _ <- pool.offer((context, consumer, mFactory))
             } yield ()
           )
         )
@@ -90,6 +89,7 @@ object JmsAcknowledgerConsumer {
         .repeat
         .compile
         .drain
+    }
 
   sealed abstract class AckAction[F[_]] extends Product with Serializable {
     def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: AckAction.Send[F] => F[Unit]): F[Unit]

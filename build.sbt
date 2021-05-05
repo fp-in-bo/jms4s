@@ -108,10 +108,10 @@ val catsV                = "2.6.0"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.2.0"
 val activeMQV            = "2.17.0"
-val catsEffectV          = "2.5.0"
-val catsEffectScalaTestV = "0.5.1"
-val fs2V                 = "2.5.5"
-val log4catsV            = "1.1.1"
+val catsEffectV          = "3.1.0"
+val catsEffectScalaTestV = "1.1.0"
+val fs2V                 = "3.0.2"
+val log4catsV            = "2.1.0"
 val log4jSlf4jImplV      = "2.14.1"
 
 val kindProjectorV    = "0.11.3"
@@ -214,13 +214,12 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector"     % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
   libraryDependencies ++= Seq(
-    "javax.jms"         % "javax.jms-api"                  % jmsV,
-    "org.typelevel"     %% "cats-core"                     % catsV,
-    "org.typelevel"     %% "cats-effect"                   % catsEffectV,
-    "co.fs2"            %% "fs2-core"                      % fs2V,
-    "co.fs2"            %% "fs2-io"                        % fs2V,
-    "io.chrisdavenport" %% "log4cats-slf4j"                % log4catsV,
-    "com.codecommit"    %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
+    "javax.jms"     % "javax.jms-api"                  % jmsV,
+    "org.typelevel" %% "cats-core"                     % catsV,
+    "org.typelevel" %% "cats-effect"                   % catsEffectV,
+    "co.fs2"        %% "fs2-core"                      % fs2V,
+    "org.typelevel" %% "log4cats-slf4j"                % log4catsV,
+    "org.typelevel" %% "cats-effect-testing-scalatest" % catsEffectScalaTestV % Test
   )
 )
 

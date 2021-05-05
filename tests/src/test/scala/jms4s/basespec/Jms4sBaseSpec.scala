@@ -22,22 +22,21 @@
 package jms4s.basespec
 
 import cats.data.NonEmptyList
-import cats.effect.concurrent.Ref
-import cats.effect.{ Concurrent, ContextShift, IO, Resource }
+import cats.effect._
 import cats.implicits._
-import io.chrisdavenport.log4cats.SelfAwareStructuredLogger
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import jms4s.JmsClient
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
+import org.typelevel.log4cats.SelfAwareStructuredLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
-  def jmsClientRes(implicit cs: ContextShift[IO]): Resource[IO, JmsClient[IO]]
+  def jmsClientRes(implicit cs: Async[IO]): Resource[IO, JmsClient[IO]]
 
   val body                         = "body"
   val nMessages: Int               = 50
@@ -64,7 +63,7 @@ trait Jms4sBaseSpec {
     consumer: JmsMessageConsumer[IO],
     received: Ref[IO, Set[String]],
     nMessages: Int
-  )(implicit F: Concurrent[IO]): IO[Set[String]] =
+  ): IO[Set[String]] =
     receiveBodyAsTextOrFail(consumer)
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)

@@ -21,11 +21,8 @@
 
 package jms4s.jms
 
-import java.util.concurrent.TimeUnit
-
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource, Timer }
-import cats.implicits._
+import cats.effect.{ Clock, IO, Resource }
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.DestinationName
 import jms4s.model.SessionType
@@ -57,12 +54,12 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     contexts(inputQueueName).use {
       case (consumer, sendContext, msg) =>
         for {
-          producerTimestamp <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          producerTimestamp <- Clock[IO].realTime
           _                 <- sendContext.send(inputQueueName, msg, delay)
           msg               <- consumer.receiveJmsMessage
-          deliveryTime      <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+          deliveryTime      <- Clock[IO].realTime
           actualBody        <- msg.asTextF[IO]
-          actualDelay       = (deliveryTime - producerTimestamp).millis
+          actualDelay       = (deliveryTime - producerTimestamp)
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }
   }
