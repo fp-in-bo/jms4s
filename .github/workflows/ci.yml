@@ -64,6 +64,23 @@ jobs:
       - name: Stop docker containers
         run: docker-compose down
 
+      - if: matrix.scala == '2.12.10'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.6
+
+      - if: matrix.scala == '2.12.10'
+        run: gem update --system
+
+      - if: matrix.scala == '2.12.10'
+        run: gem install sass
+
+      - if: matrix.scala == '2.12.10'
+        run: gem install jekyll -v 4
+
+      - if: matrix.scala == '2.12.10'
+        run: sbt ++${{ matrix.scala }} site/makeMicrosite
+
       - name: Compress target directories
         run: tar cf targets.tar target ibm-mq/target examples/target site/target tests/target active-mq-artemis/target core/target project/target
 
@@ -165,53 +182,9 @@ jobs:
       - name: Scalafmt
         run: sbt ++${{ matrix.scala }} scalafmtCheckAll
 
-  microsite:
-    name: Microsite
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        scala: [2.12.10]
-        java: [adopt@1.8]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout current branch (full)
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      - name: Setup Java and Scala
-        uses: olafurpg/setup-scala@v10
-        with:
-          java-version: ${{ matrix.java }}
-
-      - name: Cache sbt
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.sbt
-            ~/.ivy2/cache
-            ~/.coursier/cache/v1
-            ~/.cache/coursier/v1
-            ~/AppData/Local/Coursier/Cache/v1
-            ~/Library/Caches/Coursier/v1
-          key: ${{ runner.os }}-sbt-cache-v2-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 2.6
-
-      - run: gem update --system
-
-      - run: gem install sass
-
-      - run: gem install jekyll -v 4
-
-      - name: Build the microsite
-        run: sbt ++${{ matrix.scala }} site/makeMicrosite
-
   build-success:
     name: Build Success
-    needs: [build, scalafmt, microsite]
+    needs: [build, scalafmt]
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -223,8 +196,8 @@ jobs:
 
   site:
     name: Deploy site
-    needs: [build, microsite]
-    if: always() && needs.build.result == 'success' && needs.microsite.result == 'success' && (github.ref == 'refs/heads/main')
+    needs: [build]
+    if: always() && needs.build.result == 'success' && (github.ref == 'refs/heads/main')
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -257,4 +230,3 @@ jobs:
         with:
           publish_dir: ./site/target/site
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          keep_files: true

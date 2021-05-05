@@ -37,6 +37,9 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Sbt(List("test"), name = Some("Test")),
   WorkflowStep.Run(List("docker-compose down"), name = Some("Stop docker containers"))
 //  WorkflowStep.Sbt(List("mimaReportBinaryIssues"), name = Some("Binary Compatibility Check"))
+) ++ micrositeWorkflowSteps(Some(MicrositesCond)).toSeq :+ WorkflowStep.Sbt(
+  List("site/makeMicrosite"),
+  cond = Some(MicrositesCond)
 )
 
 ThisBuild / githubWorkflowAddedJobs ++= Seq(
@@ -49,17 +52,17 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     // Awaiting release of https://github.com/scalameta/scalafmt/pull/2324/files
     scalas = crossScalaVersions.value.toList.filter(_.startsWith("2."))
   ),
-  WorkflowJob(
+  /*  WorkflowJob(
     "microsite",
     "Microsite",
     githubWorkflowJobSetup.value.toList ::: (micrositeWorkflowSteps(None) :+ WorkflowStep
       .Sbt(List("site/makeMicrosite"), name = Some("Build the microsite"))),
     scalas = List(Scala212)
-  ),
+  ),*/
   WorkflowJob( //This step is to collect the entire build outcome since mergify is not acting properly with githubactions.
     id = "build-success",
     name = "Build Success",
-    needs = List("build", "scalafmt", "microsite"),
+    needs = List("build", "scalafmt"),
     steps = List(WorkflowStep.Run(List("echo Build Succeded"))),
     oses = List("ubuntu-latest"),
     //These are useless but we don't know how to remove the scalas and javas attributes
@@ -82,13 +85,12 @@ ThisBuild / githubWorkflowPublish := Seq(
 ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
   id = "site",
   name = "Deploy site",
-  needs = List("build", "microsite"),
+  needs = List("build"),
   javas = List(Java11),
   scalas = List(Scala213),
   cond = """
            | always() &&
            | needs.build.result == 'success' &&
-           | needs.microsite.result == 'success' &&
            | (github.ref == 'refs/heads/main')
   """.stripMargin.trim.linesIterator.mkString.some,
   steps = githubWorkflowGeneratedDownloadSteps.value.toList :+
@@ -97,8 +99,7 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
       name = Some(s"Deploy site"),
       params = Map(
         "publish_dir"  -> "./site/target/site",
-        "github_token" -> "${{ secrets.GITHUB_TOKEN }}",
-        "keep_files"   -> "true"
+        "github_token" -> "${{ secrets.GITHUB_TOKEN }}"
       )
     )
 )
