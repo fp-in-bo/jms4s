@@ -25,25 +25,30 @@ import cats.effect.{ Async, Resource }
 import jms4s.config.DestinationName
 import jms4s.jms._
 
+import scala.concurrent.duration.FiniteDuration
+
 class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsContext[F]) {
 
   def createTransactedConsumer(
     inputDestinationName: DestinationName,
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel)
+    JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
 
   def createAutoAcknowledgerConsumer(
     inputDestinationName: DestinationName,
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    JmsAutoAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel)
+    JmsAutoAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
 
   def createAcknowledgerConsumer(
     inputDestinationName: DestinationName,
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    JmsAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel)
+    JmsAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
 
   def createProducer(
     concurrencyLevel: Int
