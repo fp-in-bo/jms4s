@@ -31,11 +31,6 @@ function prepareIdxAndDocMap() {
       "title": "Code of conduct",
       "url": "/jms4s/extra_md/code-of-conduct.html",
       "content": "Code of Conduct We are committed to providing a friendly, safe and welcoming environment for all, regardless of level of experience, gender, gender identity and expression, sexual orientation, disability, personal appearance, body size, race, ethnicity, age, religion, nationality, or other such characteristics. Everyone is expected to follow the Scala Code of Conduct when discussing the project on the available communication channels. If you are being harassed, please contact us immediately so that we can support you. Moderation Any questions, concerns, or moderation requests please contact a member of the project."
-    } ,      
-    {
-      "title": "IBM MQ",
-      "url": "/jms4s/providers/ibm-mq/",
-      "content": "IBM MQ Creating a jms client for an IBM MQ queue manager is as easy as: import cats.data.NonEmptyList import cats.effect.{ IO, Resource } import jms4s.ibmmq.ibmMQ import jms4s.ibmmq.ibmMQ._ import jms4s.JmsClient import org.typelevel.log4cats.Logger def jmsClientResource(implicit L: Logger[IO]): Resource[IO, JmsClient[IO]] = ibmMQ.makeJmsClient[IO]( Config( qm = QueueManager(\"YOUR.QM\"), endpoints = NonEmptyList.one(Endpoint(\"localhost\", 1414)), channel = Channel(\"YOUR.CHANNEL\"), username = Some(Username(\"YOU\")), password = Some(Password(\"PW\")), clientId = ClientId(\"YOUR.APP\") ) )"
     } ,    
     {
       "title": "Active MQ Artemis",
@@ -43,9 +38,24 @@ function prepareIdxAndDocMap() {
       "content": "Active MQ Artemis Creating a jms client for an Active MQ Artemis cluster is as easy as: import cats.data.NonEmptyList import cats.effect.{ IO, Resource } import jms4s.activemq.activeMQ import jms4s.activemq.activeMQ._ import org.typelevel.log4cats.Logger import jms4s.JmsClient def jmsClientResource(implicit L: Logger[IO]): Resource[IO, JmsClient[IO]] = activeMQ.makeJmsClient[IO]( Config( endpoints = NonEmptyList.one(Endpoint(\"localhost\", 61616)), username = Some(Username(\"YOU\")), password = Some(Password(\"PW\")), clientId = ClientId(\"YOUR.APP\") ) ) Why not ActiveMQ 5 “Classic”? ActiveMQ 5 “Classic” is only supporting JMS 1.1, which is missing a bunch of features we really need to offer."
     } ,    
     {
+      "title": "IBM MQ",
+      "url": "/jms4s/providers/ibm-mq/",
+      "content": "IBM MQ Creating a jms client for an IBM MQ queue manager is as easy as: import cats.data.NonEmptyList import cats.effect.{ IO, Resource } import jms4s.ibmmq.ibmMQ import jms4s.ibmmq.ibmMQ._ import jms4s.JmsClient import org.typelevel.log4cats.Logger def jmsClientResource(implicit L: Logger[IO]): Resource[IO, JmsClient[IO]] = ibmMQ.makeJmsClient[IO]( Config( qm = QueueManager(\"YOUR.QM\"), endpoints = NonEmptyList.one(Endpoint(\"localhost\", 1414)), channel = Channel(\"YOUR.CHANNEL\"), username = Some(Username(\"YOU\")), password = Some(Password(\"PW\")), clientId = ClientId(\"YOUR.APP\") ) )"
+    } ,    
+    {
       "title": "Providers",
       "url": "/jms4s/providers/",
       "content": "Providers Currently supported: Active MQ Artemis IBM MQ Supporting a new provider is a task which should be pretty straightforward. I you need a provider which is missing you can: Try contributing! PRs are always welcome! Raise an issue. Let us know, someone may eventually pick that up or we can guide you to a complete PR."
+    } ,      
+    {
+      "title": "Producer",
+      "url": "/jms4s/programs/producer/",
+      "content": "Producer A JmsProducer is a producer that lets the client publish a message in queues/topics. sendN: to send N messages to N Destinations. def sendN( makeN: MessageFactory[F] =&gt; F[NonEmptyList[(JmsMessage, DestinationName)]] ): F[Unit] sendNWithDelay: to send N messages to N Destinations with an optional delay. def sendNWithDelay( makeNWithDelay: MessageFactory[F] =&gt; F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]] ): F[Unit] sendWithDelay: to send a message to a Destination. def sendWithDelay( make1WithDelay: MessageFactory[F] =&gt; F[(JmsMessage, (DestinationName, Option[FiniteDuration]))] ): F[Unit] send: to send a message to a Destination. def send( make1: MessageFactory[F] =&gt; F[(JmsMessage, DestinationName)] ): F[Unit] For each operation, the client has to provide a function that knows how to build a JmsMessage given a MessageFactory. This may appear counter-intuitive at first, but the reason behind this design is that creating a JmsMessage is an operation that involves interacting with JMS APIs, and we want to provide a high-level API so that the user can’t do things wrong. A complete example is available in the example project. A note on concurrency A JmsProducer can be used concurrently, performing up to concurrencyLevel concurrent operation."
+    } ,    
+    {
+      "title": "Acknowledger Consumer",
+      "url": "/jms4s/programs/ack-consumer/",
+      "content": "Acknowledger Consumer A JmsAcknowledgerConsumer is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception. Its only operation is: def handle(f: (JmsMessage, MessageFactory[F]) =&gt; F[AckAction[F]]): F[Unit] This is where the user of the API can specify its business logic, which can be any effectful operation. Creating a message is as effectful operation as well, and the MessageFactory argument will provide the only way in which a client can create a brand new message. This argument can be ignored if the client is only consuming messages. What handle expects is an AckAction[F], which can be either: an AckAction.ack, which will instructs the lib to confirm the message an AckAction.noAck, which will instructs the lib to do nothing an AckAction.send in all its forms, which can be used to instruct the lib to send 1 or multiple messages to 1 or multiple destinations The consumer can be configured specifying a concurrencyLevel, which is used internally to scale the operations (receive and then process up to concurrencyLevel). A complete example is available in the example project."
     } ,    
     {
       "title": "Auto-Acknowledger Consumer",
@@ -56,16 +66,6 @@ function prepareIdxAndDocMap() {
       "title": "Transacted Consumer",
       "url": "/jms4s/programs/tx-consumer/",
       "content": "Transacted Consumer A JmsTransactedConsumer is a consumer that will use a local transaction to receive a message and which lets the client decide whether to commit or rollback it. Its only operation is: def handle(f: (JmsMessage, MessageFactory[F]) =&gt; F[TransactionAction[F]]): F[Unit] This is where the user of the API can specify its business logic, which can be any effectful operation. Creating a message is as effectful operation as well, and the MessageFactory argument will provide the only way in which a client can create a brand new message. This argument can be ignored if the client is only consuming messages. What handle expects is a TransactionAction[F], which can be either: a TransactionAction.commit, which will instructs the lib to commit the local transaction a TransactionAction.rollback, which will instructs the lib to rollback the local transaction a TransactionAction.send in all its forms, which can be used to send 1 or multiple messages to 1 or multiple destinations and then commit the local transaction The consumer can be configured specifying a concurrencyLevel, which is used internally to scale the operations (receive and then process up to concurrencyLevel). A complete example is available in the example project."
-    } ,    
-    {
-      "title": "Acknowledger Consumer",
-      "url": "/jms4s/programs/ack-consumer/",
-      "content": "Acknowledger Consumer A JmsAcknowledgerConsumer is a consumer which let the client decide whether confirm (a.k.a. ack) or reject (a.k.a. nack) a message after its reception. Its only operation is: def handle(f: (JmsMessage, MessageFactory[F]) =&gt; F[AckAction[F]]): F[Unit] This is where the user of the API can specify its business logic, which can be any effectful operation. Creating a message is as effectful operation as well, and the MessageFactory argument will provide the only way in which a client can create a brand new message. This argument can be ignored if the client is only consuming messages. What handle expects is an AckAction[F], which can be either: an AckAction.ack, which will instructs the lib to confirm the message an AckAction.noAck, which will instructs the lib to do nothing an AckAction.send in all its forms, which can be used to instruct the lib to send 1 or multiple messages to 1 or multiple destinations The consumer can be configured specifying a concurrencyLevel, which is used internally to scale the operations (receive and then process up to concurrencyLevel). A complete example is available in the example project."
-    } ,    
-    {
-      "title": "Producer",
-      "url": "/jms4s/programs/producer/",
-      "content": "Producer A JmsProducer is a producer that lets the client publish a message in queues/topics. sendN: to send N messages to N Destinations. def sendN( makeN: MessageFactory[F] =&gt; F[NonEmptyList[(JmsMessage, DestinationName)]] ): F[Unit] sendNWithDelay: to send N messages to N Destinations with an optional delay. def sendNWithDelay( makeNWithDelay: MessageFactory[F] =&gt; F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]] ): F[Unit] sendWithDelay: to send a message to a Destination. def sendWithDelay( make1WithDelay: MessageFactory[F] =&gt; F[(JmsMessage, (DestinationName, Option[FiniteDuration]))] ): F[Unit] send: to send a message to a Destination. def send( make1: MessageFactory[F] =&gt; F[(JmsMessage, DestinationName)] ): F[Unit] For each operation, the client has to provide a function that knows how to build a JmsMessage given a MessageFactory. This may appear counter-intuitive at first, but the reason behind this design is that creating a JmsMessage is an operation that involves interacting with JMS APIs, and we want to provide a high-level API so that the user can’t do things wrong. A complete example is available in the example project. A note on concurrency A JmsProducer can be used concurrently, performing up to concurrencyLevel concurrent operation."
     } ,    
     {
       "title": "Program",
