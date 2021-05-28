@@ -104,17 +104,17 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
     )
 )
 
-val catsV                = "2.6.0"
+val catsV                = "2.6.1"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.2.0"
 val activeMQV            = "2.17.0"
-val catsEffectV          = "3.1.0"
-val catsEffectScalaTestV = "1.1.0"
+val catsEffectV          = "3.1.1"
+val catsEffectScalaTestV = "1.1.1"
 val fs2V                 = "3.0.2"
-val log4catsV            = "2.1.0"
+val log4catsV            = "2.1.1"
 val log4jSlf4jImplV      = "2.14.1"
 
-val kindProjectorV    = "0.11.3"
+val kindProjectorV    = "0.13.0"
 val betterMonadicForV = "0.3.1"
 
 // Projects
