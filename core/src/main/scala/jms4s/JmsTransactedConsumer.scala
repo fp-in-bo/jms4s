@@ -43,7 +43,8 @@ object JmsTransactedConsumer {
   private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
     for {
       pool <- Resource.eval(
@@ -53,7 +54,7 @@ object JmsTransactedConsumer {
             .traverse_(_ =>
               for {
                 c        <- context.createContext(SessionType.Transacted)
-                consumer <- c.createJmsConsumer(inputDestinationName)
+                consumer <- c.createJmsConsumer(inputDestinationName, pollingInterval)
                 _        <- Resource.eval(pool.offer((c, consumer, MessageFactory[F](c))))
               } yield ()
             )

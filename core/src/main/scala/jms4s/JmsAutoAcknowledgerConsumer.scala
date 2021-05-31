@@ -43,7 +43,8 @@ object JmsAutoAcknowledgerConsumer {
   private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     for {
       pool <- Resource.eval(
@@ -52,7 +53,7 @@ object JmsAutoAcknowledgerConsumer {
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               ctx      <- context.createContext(SessionType.AutoAcknowledge)
-              consumer <- ctx.createJmsConsumer(inputDestinationName)
+              consumer <- ctx.createJmsConsumer(inputDestinationName, pollingInterval)
               _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }

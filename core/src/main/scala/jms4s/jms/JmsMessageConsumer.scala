@@ -24,10 +24,13 @@ package jms4s.jms
 import cats.effect.{ Async, Spawn, Sync }
 import cats.syntax.all._
 
+import scala.concurrent.duration.FiniteDuration
+
 import javax.jms.JMSConsumer
 
 class JmsMessageConsumer[F[_]: Async] private[jms4s] (
-  private[jms4s] val wrapped: JMSConsumer
+  private[jms4s] val wrapped: JMSConsumer,
+  private[jms4s] val pollingInterval: FiniteDuration
 ) {
 
   val receiveJmsMessage: F[JmsMessage] =
@@ -35,7 +38,7 @@ class JmsMessageConsumer[F[_]: Async] private[jms4s] (
       recOpt <- Sync[F].blocking(Option(wrapped.receiveNoWait()))
       rec <- recOpt match {
               case Some(message) => Sync[F].pure(new JmsMessage(message))
-              case None          => Spawn[F].cede >> receiveJmsMessage
+              case None          => Spawn[F].cede >> Async[F].sleep(pollingInterval) >> receiveJmsMessage
             }
     } yield rec
 }

@@ -34,11 +34,13 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   private def contexts(destination: DestinationName) =
     for {
-      client          <- jmsClientRes
-      context         = client.context
-      receiveConsumer <- context.createContext(SessionType.AutoAcknowledge).flatMap(_.createJmsConsumer(destination))
-      sendContext     <- context.createContext(SessionType.AutoAcknowledge)
-      msg             <- Resource.eval(context.createTextMessage(body))
+      client  <- jmsClientRes
+      context = client.context
+      receiveConsumer <- context
+                          .createContext(SessionType.AutoAcknowledge)
+                          .flatMap(_.createJmsConsumer(destination, pollingInterval))
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      msg         <- Resource.eval(context.createTextMessage(body))
     } yield (receiveConsumer, sendContext, msg)
 
   "publish to a queue and then receive" in {

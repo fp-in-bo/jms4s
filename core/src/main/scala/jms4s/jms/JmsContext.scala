@@ -65,7 +65,10 @@ class JmsContext[F[_]: Async: Logger](
           )
     } yield ()
 
-  def createJmsConsumer(destinationName: DestinationName): Resource[F, JmsMessageConsumer[F]] =
+  def createJmsConsumer(
+    destinationName: DestinationName,
+    pollingInterval: FiniteDuration
+  ): Resource[F, JmsMessageConsumer[F]] =
     for {
       destination <- Resource.eval(createDestination(destinationName))
       consumer <- Resource.make(
@@ -75,7 +78,7 @@ class JmsContext[F[_]: Async: Logger](
                    Logger[F].info(s"Closing consumer for destination $destinationName") *>
                      Sync[F].blocking(consumer.close())
                  )
-    } yield new JmsMessageConsumer[F](consumer)
+    } yield new JmsMessageConsumer[F](consumer, pollingInterval)
 
   def createTextMessage(value: String): F[JmsTextMessage] =
     Sync[F].delay(new JmsTextMessage(context.createTextMessage(value)))
