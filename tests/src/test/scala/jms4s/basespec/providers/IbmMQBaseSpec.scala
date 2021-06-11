@@ -35,14 +35,9 @@ trait IbmMQBaseSpec extends Jms4sBaseSpec {
       Config(
         qm = QueueManager("QM1"),
         endpoints = NonEmptyList.one(Endpoint("localhost", 1414)),
-        // the current docker image seems to be misconfigured, so I need to use admin channel/auth in order to test topic
-        // but maybe it's just me not understanding something properly.. as usual
-        //          channel = Channel("DEV.APP.SVRCONN"),
-        //          username = Some(Username("app")),
-        //          password = None,
-        channel = Channel("DEV.ADMIN.SVRCONN"),
-        username = Some(Username("admin")),
-        password = Some(Password("passw0rd")),
+        channel = Channel("DEV.APP.SVRCONN"),
+        username = Some(Username("app")),
+        password = None,
         clientId = ClientId("jms-specs")
       )
     )
