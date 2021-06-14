@@ -64,7 +64,7 @@ object ibmMQ {
                       config.username.map { username =>
                         connectionFactory.createContext(
                           username.value,
-                          config.password.map(_.value).getOrElse("")
+                          config.password.map(_.value).orNull
                         )
                       }.getOrElse(connectionFactory.createContext())
                     }

@@ -1,8 +1,10 @@
 ibmmq:
-  image: ibmcom/mq # https://github.com/ibm-messaging/mq-docker
+  image: ibmcom/mq:9.2.2.0-r1 # https://github.com/ibm-messaging/mq-container
   ports:
     - "1414:1414"
     - "9443:9443" #  https://localhost:9443/ibmmq/console/
+  volumes:
+    - ./scripts/definitions.mqsc:/etc/mqm/definitions.mqsc:ro
   environment:
     - LICENSE=accept
     - MQ_QMGR_NAME=QM1
@@ -27,7 +29,7 @@ ibmmq:
 #  DEV.BASE.TOPIC - With a topic string of dev/
 
 activemq:
-  image: vromero/activemq-artemis # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
+  image: vromero/activemq-artemis:2.16.0 # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
   ports:
     - "8161:8161" # http://localhost:8161/console
     - "61616:61616"
