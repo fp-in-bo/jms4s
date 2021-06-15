@@ -18,7 +18,7 @@ ThisBuild / githubWorkflowJavaVersions := Seq(Java18, Java11)
 ThisBuild / baseVersion := "0.0.1"
 
 //CI definition
-val MicrositesCond = s"matrix.scala == '$Scala212'"
+val MicrositesCond = s"matrix.scala == '$Scala213'"
 
 def micrositeWorkflowSteps(cond: Option[String] = None): List[WorkflowStep] = List(
   WorkflowStep.Use(
@@ -37,7 +37,7 @@ ThisBuild / githubWorkflowBuild := Seq(
   WorkflowStep.Sbt(List("test"), name = Some("Test")),
   WorkflowStep.Run(List("docker-compose down"), name = Some("Stop docker containers"))
 //  WorkflowStep.Sbt(List("mimaReportBinaryIssues"), name = Some("Binary Compatibility Check"))
-) ++ micrositeWorkflowSteps(Some(MicrositesCond)).toSeq :+ WorkflowStep.Sbt(
+) ++ micrositeWorkflowSteps(Some(MicrositesCond)) :+ WorkflowStep.Sbt(
   List("site/makeMicrosite"),
   cond = Some(MicrositesCond)
 )
@@ -75,6 +75,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
 ThisBuild / githubWorkflowTargetBranches := List("*")
 ThisBuild / githubWorkflowTargetTags ++= Seq("v*")
 ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v")))
+ThisBuild / githubWorkflowUseSbtThinClient := false // setting to true makes micro-site build fail
 
 ThisBuild / githubWorkflowPublish := Seq(
   WorkflowStep.Sbt(

@@ -64,21 +64,21 @@ jobs:
       - name: Stop docker containers
         run: docker-compose down
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.13.5'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 2.6
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.13.5'
         run: gem update --system
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.13.5'
         run: gem install sass
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.13.5'
         run: gem install jekyll -v 4
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.13.5'
         run: sbt ++${{ matrix.scala }} site/makeMicrosite
 
       - name: Compress target directories
