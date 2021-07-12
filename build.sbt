@@ -1,5 +1,5 @@
 val Scala213 = "2.13.5"
-val Scala212 = "2.12.10"
+val Scala212 = "2.12.14"
 val Java18   = "adopt@1.8"
 val Java11   = "adopt@1.11"
 

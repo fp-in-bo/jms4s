@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.5, 2.12.10]
+        scala: [2.13.5, 2.12.14]
         java: [adopt@1.8, adopt@1.11]
     runs-on: ${{ matrix.os }}
     steps:
@@ -64,21 +64,21 @@ jobs:
       - name: Stop docker containers
         run: docker-compose down
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.14'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 2.6
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.14'
         run: gem update --system
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.14'
         run: gem install sass
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.14'
         run: gem install jekyll -v 4
 
-      - if: matrix.scala == '2.12.10'
+      - if: matrix.scala == '2.12.14'
         run: sbt ++${{ matrix.scala }} site/makeMicrosite
 
       - name: Compress target directories
@@ -133,12 +133,12 @@ jobs:
           tar xf targets.tar
           rm targets.tar
 
-      - name: Download target directories (2.12.10)
+      - name: Download target directories (2.12.14)
         uses: actions/download-artifact@v2
         with:
-          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}
+          name: target-${{ matrix.os }}-2.12.14-${{ matrix.java }}
 
-      - name: Inflate target directories (2.12.10)
+      - name: Inflate target directories (2.12.14)
         run: |
           tar xf targets.tar
           rm targets.tar
@@ -153,7 +153,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        scala: [2.13.5, 2.12.10]
+        scala: [2.13.5, 2.12.14]
         java: [adopt@1.8]
     runs-on: ${{ matrix.os }}
     steps:
@@ -215,12 +215,12 @@ jobs:
           tar xf targets.tar
           rm targets.tar
 
-      - name: Download target directories (2.12.10)
+      - name: Download target directories (2.12.14)
         uses: actions/download-artifact@v2
         with:
-          name: target-${{ matrix.os }}-2.12.10-${{ matrix.java }}
+          name: target-${{ matrix.os }}-2.12.14-${{ matrix.java }}
 
-      - name: Inflate target directories (2.12.10)
+      - name: Inflate target directories (2.12.14)
         run: |
           tar xf targets.tar
           rm targets.tar
