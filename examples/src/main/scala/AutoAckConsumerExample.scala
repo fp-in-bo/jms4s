@@ -25,6 +25,8 @@ import jms4s.JmsClient
 import jms4s.config.{ QueueName, TopicName }
 import jms4s.jms.MessageFactory
 
+import scala.concurrent.duration._
+
 class AutoAckConsumerExample extends IOApp {
 
   val jmsClient: Resource[IO, JmsClient[IO]] = null // see providers section!
@@ -41,7 +43,7 @@ class AutoAckConsumerExample extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
     val consumerRes = for {
       client   <- jmsClient
-      consumer <- client.createAutoAcknowledgerConsumer(inputQueue, 10)
+      consumer <- client.createAutoAcknowledgerConsumer(inputQueue, 10, 100.millis)
     } yield consumer
 
     consumerRes.use(_.handle { (jmsMessage, mf) =>

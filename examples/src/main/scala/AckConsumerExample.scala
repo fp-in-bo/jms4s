@@ -25,6 +25,8 @@ import jms4s.JmsClient
 import jms4s.config.{ QueueName, TopicName }
 import jms4s.jms.MessageFactory
 
+import scala.concurrent.duration._
+
 class AckConsumerExample extends IOApp {
 
   val contextRes: Resource[IO, JmsClient[IO]] = null // see providers section!
@@ -42,7 +44,7 @@ class AckConsumerExample extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
     val consumerRes = for {
       client   <- contextRes
-      consumer <- client.createAcknowledgerConsumer(inputQueue, 10)
+      consumer <- client.createAcknowledgerConsumer(inputQueue, 10, 100.millis)
     } yield consumer
 
     consumerRes.use(_.handle { (jmsMessage, mf) =>
