@@ -22,11 +22,11 @@
 package jms4s
 
 import cats.data.NonEmptyList
+import cats.effect.kernel.MonadCancel
 import cats.effect.std.Queue
 import cats.effect.{ Async, Resource }
 import cats.syntax.all._
 import fs2.Stream
-import jms4s.JmsTransactedConsumer.JmsTransactedConsumerPool.Received
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms._
@@ -68,23 +68,7 @@ object JmsTransactedConsumer {
       Stream
         .emits(0 until concurrencyLevel)
         .as(
-          Stream.eval(
-            fo = for {
-              received <- pool.receive
-              tResult  <- f(received.message, received.messageFactory)
-              _ <- tResult.fold(
-                    ifCommit = pool.commit(received.context, received.consumer, received.messageFactory),
-                    ifRollback = pool.rollback(received.context, received.consumer, received.messageFactory),
-                    ifSend = send =>
-                      send.messages.messagesAndDestinations.traverse_ {
-                        case (message, (name, delay)) =>
-                          delay.fold(
-                            received.context.send(name, message)
-                          )(d => received.context.send(name, message, d))
-                      } *> pool.commit(received.context, received.consumer, received.messageFactory)
-                  )
-            } yield ()
-          )
+          Stream.eval(pool.receive(f))
         )
         .parJoin(concurrencyLevel)
         .repeat
@@ -92,26 +76,29 @@ object JmsTransactedConsumer {
         .drain
 
   private[jms4s] class JmsTransactedConsumerPool[F[_]: Async](
-    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
+    private val pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
   ) {
 
-    val receive: F[Received[F]] =
-      for {
-        (context, consumer, mf) <- pool.take
-        message                 <- consumer.receiveJmsMessage
-      } yield Received(message, context, consumer, mf)
+    def receive(action: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]): F[Unit] =
+      MonadCancel[F].bracket(pool.take) {
+        case (context, consumer, mf) =>
+          for {
+            receive   <- consumer.receiveJmsMessage
+            txnAction <- action(receive, mf)
+            _ <- txnAction.fold(
+                  ifCommit = context.commit,
+                  ifRollback = context.rollback,
+                  ifSend = send =>
+                    send.messages.messagesAndDestinations.traverse_ {
+                      case (message, (name, delay)) =>
+                        delay.fold(
+                          context.send(name, message)
+                        )(d => context.send(name, message, d))
+                    } *> context.commit
+                )
+          } yield ()
+      }(pool.offer)
 
-    def commit(context: JmsContext[F], consumer: JmsMessageConsumer[F], mf: MessageFactory[F]): F[Unit] =
-      for {
-        _ <- context.commit
-        _ <- pool.offer((context, consumer, mf))
-      } yield ()
-
-    def rollback(context: JmsContext[F], consumer: JmsMessageConsumer[F], mf: MessageFactory[F]): F[Unit] =
-      for {
-        _ <- context.rollback
-        _ <- pool.offer((context, consumer, mf))
-      } yield ()
   }
 
   object JmsTransactedConsumerPool {
