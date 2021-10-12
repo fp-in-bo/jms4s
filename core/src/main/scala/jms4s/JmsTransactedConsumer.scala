@@ -101,16 +101,6 @@ object JmsTransactedConsumer {
 
   }
 
-  object JmsTransactedConsumerPool {
-
-    case class Received[F[_]](
-      message: JmsMessage,
-      context: JmsContext[F],
-      consumer: JmsMessageConsumer[F],
-      messageFactory: MessageFactory[F]
-    )
-  }
-
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
     def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: TransactionAction.Send[F] => F[Unit]): F[Unit]
   }

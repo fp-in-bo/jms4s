@@ -22,6 +22,7 @@
 package jms4s
 
 import cats.data.NonEmptyList
+import cats.effect.kernel.MonadCancel
 import cats.effect.std.Queue
 import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
@@ -57,41 +58,48 @@ object JmsAutoAcknowledgerConsumer {
               _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
-    } yield build(pool, concurrencyLevel)
+    } yield build(new JmsAutoAckConsumerPool(pool), concurrencyLevel)
 
   private def build[F[_]: Async](
-    pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
+    pool: JmsAutoAckConsumerPool[F],
     concurrencyLevel: Int
   ): JmsAutoAcknowledgerConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
       Stream
         .emits(0 until concurrencyLevel)
         .as(
-          Stream.eval(
-            for {
-              (context, consumer, mf) <- pool.take
-              message                 <- consumer.receiveJmsMessage
-              res: AutoAckAction[F]   <- f(message, mf)
-              _ <- res.fold(
-                    ifNoOp = Sync[F].unit,
-                    ifSend = (send: Send[F]) =>
-                      send.messages.messagesAndDestinations.traverse_ {
-                        case (message, (name, delay)) =>
-                          delay.fold(
-                            ifEmpty = context.send(name, message)
-                          )(
-                            f = d => context.send(name, message, d)
-                          )
-                      }
-                  )
-              _ <- pool.offer((context, consumer, mf))
-            } yield ()
-          )
+          Stream.eval(pool.receive(f))
         )
         .parJoin(concurrencyLevel)
         .repeat
         .compile
         .drain
+
+  private[jms4s] class JmsAutoAckConsumerPool[F[_]: Async](
+    private val pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
+  ) {
+
+    def receive(action: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit] =
+      MonadCancel[F].bracket(pool.take) {
+        case (context, consumer, mf) =>
+          for {
+            message               <- consumer.receiveJmsMessage
+            res: AutoAckAction[F] <- action(message, mf)
+            _ <- res.fold(
+                  ifNoOp = Sync[F].unit,
+                  ifSend = (send: Send[F]) =>
+                    send.messages.messagesAndDestinations.traverse_ {
+                      case (message, (name, delay)) =>
+                        delay.fold(
+                          ifEmpty = context.send(name, message)
+                        )(
+                          f = d => context.send(name, message, d)
+                        )
+                    }
+                )
+          } yield ()
+      }(pool.offer)
+  }
 
   sealed abstract class AutoAckAction[F[_]] extends Product with Serializable {
     def fold(ifNoOp: => F[Unit], ifSend: AutoAckAction.Send[F] => F[Unit]): F[Unit]
