@@ -436,4 +436,33 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }
   }
+
+  s"send more than poolSize ($poolSize) failing messages do not deadlock" in {
+    val res = for {
+      jmsClient <- jmsClientRes
+      context   = jmsClient.context
+      consumer <- context
+                   .createContext(SessionType.AutoAcknowledge)
+                   .flatMap(_.createJmsConsumer(outputQueueName1, pollingInterval))
+      message  <- Resource.eval(context.createTextMessage(body))
+      producer <- jmsClient.createProducer(poolSize)
+    } yield (producer, consumer, message)
+
+    res.use {
+      case (producer, consumer, message) =>
+        for {
+          _ <- (0 until poolSize).toList.traverse_ { _ =>
+                producer
+                  .send(_ => IO.raiseError(new RuntimeException("failed producing")))
+                  .handleErrorWith(logger.error(_)(""))
+              }
+          _ <- producer
+                .send(messageFactory(message, outputQueueName1))
+                .timeoutTo(timeout, IO(fail("in deadlock")))
+
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
+          _ <- receiveMessage(consumer).timeout(timeout)
+        } yield succeed
+    }
+  }
 }
