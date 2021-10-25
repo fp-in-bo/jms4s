@@ -110,7 +110,7 @@ val ibmMQV               = "9.2.3.0"
 val activeMQV            = "2.19.0"
 val catsEffectV          = "3.2.9"
 val catsEffectScalaTestV = "1.3.0"
-val fs2V                 = "3.2.0"
+val fs2V                 = "3.2.1"
 val log4catsV            = "2.1.1"
 val log4jSlf4jImplV      = "2.14.1"
 
