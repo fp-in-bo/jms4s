@@ -104,7 +104,7 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
     )
 )
 
-val catsV                = "2.6.1"
+val catsV                = "2.7.0"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.3.0"
 val activeMQV            = "2.19.0"
