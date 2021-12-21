@@ -1,5 +1,5 @@
 val Scala213 = "2.13.7"
-val Scala212 = "2.12.10"
+val Scala212 = "2.12.15"
 val Java18   = "adopt@1.8"
 val Java11   = "adopt@1.11"
 
@@ -104,15 +104,15 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
     )
 )
 
-val catsV                = "2.6.1"
+val catsV                = "2.7.0"
 val jmsV                 = "2.0.1"
 val ibmMQV               = "9.2.3.0"
 val activeMQV            = "2.19.0"
-val catsEffectV          = "3.2.9"
-val catsEffectScalaTestV = "1.3.0"
-val fs2V                 = "3.2.2"
+val catsEffectV          = "3.3.1"
+val catsEffectScalaTestV = "1.4.0"
+val fs2V                 = "3.2.3"
 val log4catsV            = "2.1.1"
-val log4jSlf4jImplV      = "2.14.1"
+val log4jSlf4jImplV      = "2.17.0"
 
 val kindProjectorV    = "0.13.2"
 val betterMonadicForV = "0.3.1"

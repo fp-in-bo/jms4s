@@ -66,12 +66,9 @@ object JmsTransactedConsumer {
   ): JmsTransactedConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]) =>
       Stream
-        .emits(0 until concurrencyLevel)
-        .as(
-          Stream.eval(pool.receive(f))
-        )
-        .parJoin(concurrencyLevel)
+        .emit(Stream.eval(pool.receive(f)))
         .repeat
+        .parJoin(concurrencyLevel)
         .compile
         .drain
 
