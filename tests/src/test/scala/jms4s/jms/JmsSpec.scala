@@ -74,4 +74,14 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(rec == body)
     }
   }
+
+  "update and get a JMSMessage property" in {
+    contexts(topicName1).use {
+      case (_, _, msg) =>
+        for {
+          _ <- IO.fromTry(msg.setJMSType("newType"))
+          t = msg.getJMSType
+        } yield assert(t.contains("newType"))
+    }
+  }
 }
