@@ -1,40 +1,42 @@
-ibmmq:
-  image: ibmcom/mq:9.2.4.0-r1 # https://github.com/ibm-messaging/mq-container
-  ports:
-    - "1414:1414"
-    - "9443:9443" #  https://localhost:9443/ibmmq/console/
-  volumes:
-    - ./scripts/definitions.mqsc:/etc/mqm/definitions.mqsc:ro
-  environment:
-    - LICENSE=accept
-    - MQ_QMGR_NAME=QM1
-# Users
-# Userid: admin Groups: mqm Password: passw0rd
-# Userid: app Groups: mqclient Password:
+services:
+  
+  ibmmq:
+    image: ibmcom/mq:9.2.3.0-r1 # https://github.com/ibm-messaging/mq-container
+    ports:
+      - "1414:1414"
+      - "9443:9443" #  https://localhost:9443/ibmmq/console/
+    volumes:
+      - ./scripts/definitions.mqsc:/etc/mqm/definitions.mqsc:ro
+    environment:
+      - LICENSE=accept
+      - MQ_QMGR_NAME=QM1
+  # Users
+  # Userid: admin Groups: mqm Password: passw0rd
+  # Userid: app Groups: mqclient Password:
 
-#  Queues
-#  DEV.QUEUE.1
-#  DEV.QUEUE.2
-#  DEV.QUEUE.3
-#  DEV.DEAD.LETTER.QUEUE - Set as the Queue Manager's Dead Letter Queue.
+  #  Queues
+  #  DEV.QUEUE.1
+  #  DEV.QUEUE.2
+  #  DEV.QUEUE.3
+  #  DEV.DEAD.LETTER.QUEUE - Set as the Queue Manager's Dead Letter Queue.
 
-#  Channels
-#  DEV.ADMIN.SVRCONN - Set to only allow the admin user to connect into it and a Userid + Password must be supplied.
-#  DEV.APP.SVRCONN - Does not allow Administrator users to connect.
+  #  Channels
+  #  DEV.ADMIN.SVRCONN - Set to only allow the admin user to connect into it and a Userid + Password must be supplied.
+  #  DEV.APP.SVRCONN - Does not allow Administrator users to connect.
 
-#  Listener
-#  DEV.LISTENER.TCP - Listening on Port 1414.
+  #  Listener
+  #  DEV.LISTENER.TCP - Listening on Port 1414.
 
-#  Topic
-#  DEV.BASE.TOPIC - With a topic string of dev/
+  #  Topic
+  #  DEV.BASE.TOPIC - With a topic string of dev/
 
-activemq:
-  image: vromero/activemq-artemis:2.16.0 # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
-  ports:
-    - "8161:8161" # http://localhost:8161/console
-    - "61616:61616"
-  volumes:
-    - ./scripts/broker-00.xml:/var/lib/artemis/etc-override/broker-00.xml:ro
-  environment:
-    - ARTEMIS_USERNAME=admin
-    - ARTEMIS_PASSWORD=passw0rd
+  activemq:
+    image: vromero/activemq-artemis:2.16.0 # https://github.com/vromero/activemq-artemis-docker/blob/master/README.md
+    ports:
+      - "8161:8161" # http://localhost:8161/console
+      - "61616:61616"
+    volumes:
+      - ./scripts/broker-00.xml:/var/lib/artemis/etc-override/broker-00.xml:ro
+    environment:
+      - ARTEMIS_USERNAME=admin
+      - ARTEMIS_PASSWORD=passw0rd
