@@ -23,10 +23,10 @@ package jms4s.jms
 
 import cats.syntax.all._
 import cats.{ ApplicativeError, Show }
-import javax.jms.{ Destination, Message, TextMessage }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
 import jms4s.jms.utils.TryUtils._
 
+import javax.jms.{ Destination, Message, TextMessage }
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
@@ -45,26 +45,32 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def asTextF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[String] =
     ApplicativeError[F, Throwable].fromTry(attemptAsText)
 
-  def setJMSCorrelationId(correlationId: String): Try[Unit] = Try(wrapped.setJMSCorrelationID(correlationId))
-  def setJMSReplyTo(destination: JmsDestination): Try[Unit] = Try(wrapped.setJMSReplyTo(destination.wrapped))
-  def setJMSType(`type`: String): Try[Unit]                 = Try(wrapped.setJMSType(`type`))
+  def setJMSCorrelationId(correlationId: String): Try[Unit]     = Try(wrapped.setJMSCorrelationID(correlationId))
+  def setJMSReplyTo(destination: JmsDestination): Try[Unit]     = Try(wrapped.setJMSReplyTo(destination.wrapped))
+  def setJMSType(`type`: String): Try[Unit]                     = Try(wrapped.setJMSType(`type`))
+  def setJMSMessageID(messageID: String): Try[Unit]             = Try(wrapped.setJMSMessageID(messageID))
+  def setJMSTimestamp(timestamp: Long): Try[Unit]               = Try(wrapped.setJMSTimestamp(timestamp))
+  def setJMSDestination(destination: JmsDestination): Try[Unit] = Try(wrapped.setJMSDestination(destination.wrapped))
+  def setJMSDeliveryMode(deliveryMode: Int): Try[Unit]          = Try(wrapped.setJMSDeliveryMode(deliveryMode))
+  def setJMSRedelivered(redelivered: Boolean): Try[Unit]        = Try(wrapped.setJMSRedelivered(redelivered))
+  def setJMSExpiration(expiration: Long): Try[Unit]             = Try(wrapped.setJMSExpiration(expiration))
+  def setJMSPriority(priority: Int): Try[Unit]                  = Try(wrapped.setJMSPriority(priority))
 
   def setJMSCorrelationIDAsBytes(correlationId: Array[Byte]): Try[Unit] =
     Try(wrapped.setJMSCorrelationIDAsBytes(correlationId))
 
-  val getJMSMessageId: Option[String]     = Try(Option(wrapped.getJMSMessageID)).toOpt
-  val getJMSTimestamp: Option[Long]       = Try(Option(wrapped.getJMSTimestamp)).toOpt
-  val getJMSCorrelationId: Option[String] = Try(Option(wrapped.getJMSCorrelationID)).toOpt
-
-  val getJMSCorrelationIdAsBytes: Option[Array[Byte]] = Try(Option(wrapped.getJMSCorrelationIDAsBytes)).toOpt
-  val getJMSReplyTo: Option[Destination]              = Try(Option(wrapped.getJMSReplyTo)).toOpt
-  val getJMSDestination: Option[Destination]          = Try(Option(wrapped.getJMSDestination)).toOpt
-  val getJMSDeliveryMode: Option[Int]                 = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
-  val getJMSRedelivered: Option[Boolean]              = Try(Option(wrapped.getJMSRedelivered)).toOpt
-  val getJMSType: Option[String]                      = Try(Option(wrapped.getJMSType)).toOpt
-  val getJMSExpiration: Option[Long]                  = Try(Option(wrapped.getJMSExpiration)).toOpt
-  val getJMSPriority: Option[Int]                     = Try(Option(wrapped.getJMSPriority)).toOpt
-  val getJMSDeliveryTime: Option[Long]                = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
+  def getJMSMessageId: Option[String]                 = Try(Option(wrapped.getJMSMessageID)).toOpt
+  def getJMSTimestamp: Option[Long]                   = Try(Option(wrapped.getJMSTimestamp)).toOpt
+  def getJMSCorrelationId: Option[String]             = Try(Option(wrapped.getJMSCorrelationID)).toOpt
+  def getJMSCorrelationIdAsBytes: Option[Array[Byte]] = Try(Option(wrapped.getJMSCorrelationIDAsBytes)).toOpt
+  def getJMSReplyTo: Option[Destination]              = Try(Option(wrapped.getJMSReplyTo)).toOpt
+  def getJMSDestination: Option[Destination]          = Try(Option(wrapped.getJMSDestination)).toOpt
+  def getJMSDeliveryMode: Option[Int]                 = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
+  def getJMSRedelivered: Option[Boolean]              = Try(Option(wrapped.getJMSRedelivered)).toOpt
+  def getJMSType: Option[String]                      = Try(Option(wrapped.getJMSType)).toOpt
+  def getJMSExpiration: Option[Long]                  = Try(Option(wrapped.getJMSExpiration)).toOpt
+  def getJMSPriority: Option[Int]                     = Try(Option(wrapped.getJMSPriority)).toOpt
+  def getJMSDeliveryTime: Option[Long]                = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
 
   def getBooleanProperty(name: String): Option[Boolean] =
     Try(Option(wrapped.getBooleanProperty(name))).toOpt
