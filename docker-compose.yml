@@ -1,7 +1,7 @@
 services:
   
   ibmmq:
-    image: ibmcom/mq:9.2.4.0-r1 # https://github.com/ibm-messaging/mq-container
+    image: ibmcom/mq:9.2.5.0-r1 # https://github.com/ibm-messaging/mq-container
     ports:
       - "1414:1414"
       - "9443:9443" #  https://localhost:9443/ibmmq/console/
