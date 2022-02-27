@@ -2,8 +2,8 @@ import sbtghactions.JavaSpec.Distribution.Adopt
 
 val Scala213 = "2.13.8"
 val Scala212 = "2.12.15"
-val Java18   = JavaSpec(Adopt, "1.8")
-val Java11   = JavaSpec(Adopt, "1.11")
+val Java18   = JavaSpec(Adopt, "8")
+val Java11   = JavaSpec(Adopt, "11")
 
 enablePlugins(SonatypeCiReleasePlugin)
 Global / onChangedBuildSource := ReloadOnSourceChanges
