@@ -108,7 +108,6 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
 }
 
 object JmsMessage {
-  import scala.jdk.CollectionConverters._
 
   implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
@@ -116,8 +115,15 @@ object JmsMessage {
       case _                    => Failure(new RuntimeException())
     }
 
-    def propertyNames: List[String] =
-      message.getPropertyNames.asScala.toList.map(_.toString)
+    def propertyNames: List[String] = {
+      val e   = message.getPropertyNames
+      val buf = collection.mutable.Buffer.empty[String]
+      while (e.hasMoreElements) {
+        val propertyName = e.nextElement.asInstanceOf[String]
+        buf += propertyName
+      }
+      buf.toList
+    }
 
     Try {
       s"""

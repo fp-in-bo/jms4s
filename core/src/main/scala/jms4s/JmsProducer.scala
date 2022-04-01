@@ -49,10 +49,12 @@ trait JmsProducer[F[_]] {
 
 }
 
-private[jms4s] class ContextPool[F[_]: Sync](private val contextsPool: Queue[F, JmsContext[F]]) {
+private[jms4s] class ContextPool[F[_]: Sync](private val contextsPool: Queue[F, (JmsContext[F], MessageFactory[F])]) {
 
-  def acquireAndUseContext[A](f: JmsContext[F] => F[A]): F[A] =
-    MonadCancel[F].bracket(contextsPool.take)(ctx => f(ctx))(usedCtx => contextsPool.offer(usedCtx))
+  def acquireAndUseContext[A](f: (JmsContext[F], MessageFactory[F]) => F[A]): F[A] =
+    MonadCancel[F].bracket(contextsPool.take) {
+      case (ctx, mf) => f(ctx, mf)
+    }(usedCtx => contextsPool.offer(usedCtx))
 }
 
 object ContextPool {
@@ -60,12 +62,14 @@ object ContextPool {
   def create[F[_]: Async](context: JmsContext[F], concurrencyLevel: Int): Resource[F, ContextPool[F]] =
     for {
       pool <- Resource.eval(
-               Queue.bounded[F, JmsContext[F]](concurrencyLevel)
+               Queue.bounded[F, (JmsContext[F], MessageFactory[F])](concurrencyLevel)
              )
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
-            context
-              .createContext(SessionType.AutoAcknowledge)
-              .evalMap(pool.offer)
+            for {
+              ctx <- context.createContext(SessionType.AutoAcknowledge)
+              mf  = MessageFactory[F](ctx)
+              _   <- Resource.eval(pool.offer((ctx, mf)))
+            } yield ()
           }
     } yield new ContextPool(pool)
 }
@@ -78,51 +82,57 @@ object JmsProducer {
   ): Resource[F, JmsProducer[F]] =
     for {
       pool <- ContextPool.create(context, concurrencyLevel)
-      mf   = MessageFactory[F](context)
     } yield new JmsProducer[F] {
 
       override def sendN(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
       ): F[Unit] =
-        pool.acquireAndUseContext { ctx =>
-          for {
-            messagesWithDestinations <- f(mf)
-            _ <- messagesWithDestinations.traverse_ {
-                  case (message, destinationName) => ctx.send(destinationName, message)
-                }
-          } yield ()
+        pool.acquireAndUseContext {
+          case (ctx, mf) =>
+            for {
+              messagesWithDestinations <- f(mf)
+              _ <- messagesWithDestinations.traverse_ {
+                    case (message, destinationName) => ctx.send(destinationName, message)
+                  }
+            } yield ()
         }
 
       override def sendNWithDelay(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
       ): F[Unit] =
-        pool.acquireAndUseContext { ctx =>
-          for {
-            messagesWithDestinationsAndDelayes <- f(mf)
-            _ <- messagesWithDestinationsAndDelayes.traverse_ {
-                  case (message, (destinatioName, duration)) =>
-                    duration.fold(ctx.send(destinatioName, message))(delay => ctx.send(destinatioName, message, delay))
-                }
+        pool.acquireAndUseContext {
+          case (ctx, mf) =>
+            for {
+              messagesWithDestinationsAndDelayes <- f(mf)
+              _ <- messagesWithDestinationsAndDelayes.traverse_ {
+                    case (message, (destinatioName, duration)) =>
+                      duration.fold(ctx.send(destinatioName, message))(delay =>
+                        ctx.send(destinatioName, message, delay)
+                      )
+                  }
 
-          } yield ()
+            } yield ()
         }
 
       override def sendWithDelay(
         f: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
       ): F[Unit] =
-        pool.acquireAndUseContext { ctx =>
-          for {
-            (message, (destinationName, delay)) <- f(mf)
-            _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
-          } yield ()
+        pool.acquireAndUseContext {
+          case (ctx, mf) =>
+            for {
+              (message, (destinationName, delay)) <- f(mf)
+              _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
+            } yield ()
         }
 
       override def send(f: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit] =
-        pool.acquireAndUseContext { ctx =>
-          for {
-            (message, destination) <- f(mf)
-            _                      <- ctx.send(destination, message)
-          } yield ()
+        pool.acquireAndUseContext {
+          case (ctx, mf) =>
+            for {
+              (message, destination) <- f(mf)
+              _                      <- ctx.send(destination, message)
+            } yield ()
         }
+
     }
 }

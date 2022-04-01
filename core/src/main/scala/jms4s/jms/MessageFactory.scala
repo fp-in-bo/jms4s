@@ -23,7 +23,7 @@ package jms4s.jms
 
 import jms4s.jms.JmsMessage.JmsTextMessage
 
-class MessageFactory[F[_]](context: JmsContext[F]) {
+class MessageFactory[F[_]](private val context: JmsContext[F]) extends AnyVal {
   def makeTextMessage(value: String): F[JmsTextMessage] = context.createTextMessage(value)
 }
 
