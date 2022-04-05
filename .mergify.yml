@@ -3,7 +3,7 @@ pull_request_rules:
     conditions:
       - head~=^update/
       - author=scala-steward
-      - status-success=Build Success (ubuntu-latest, 2.13.8, adopt@1.8)
+      - status-success=Build Success (ubuntu-latest, 2.13.8, adopt-hotspot@8)
     actions:
       merge:
         method: merge
