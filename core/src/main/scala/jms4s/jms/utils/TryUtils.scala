@@ -25,7 +25,7 @@ import scala.util.{ Success, Try }
 
 object TryUtils {
 
-  implicit class TryUtils[T](val underlying: Try[Option[T]]) {
+  implicit class TryUtils[T](val underlying: Try[Option[T]]) extends AnyVal {
 
     def toOpt: Option[T] =
       underlying match {

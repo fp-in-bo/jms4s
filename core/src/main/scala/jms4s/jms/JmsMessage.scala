@@ -155,6 +155,6 @@ object JmsMessage {
     def setText(text: String): Try[Unit] =
       Try(wrapped.setText(text))
 
-    val getText: Try[String] = Try(wrapped.getText)
+    def getText: Try[String] = Try(wrapped.getText)
   }
 }

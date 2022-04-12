@@ -105,16 +105,30 @@ object JmsTransactedConsumer {
   object TransactionAction {
 
     private[jms4s] case class Commit[F[_]]() extends TransactionAction[F] {
-      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifCommit
+
+      override def fold(
+        ifCommit: => F[Unit],
+        ifRollback: => F[Unit],
+        ifSend: TransactionAction.Send[F] => F[Unit]
+      ): F[Unit] = ifCommit
     }
 
     private[jms4s] case class Rollback[F[_]]() extends TransactionAction[F] {
-      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifRollback
+
+      override def fold(
+        ifCommit: => F[Unit],
+        ifRollback: => F[Unit],
+        ifSend: TransactionAction.Send[F] => F[Unit]
+      ): F[Unit] = ifRollback
     }
 
     case class Send[F[_]](messages: ToSend[F]) extends TransactionAction[F] {
 
-      override def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
+      override def fold(
+        ifCommit: => F[Unit],
+        ifRollback: => F[Unit],
+        ifSend: TransactionAction.Send[F] => F[Unit]
+      ): F[Unit] =
         ifSend(this)
     }
 
@@ -126,22 +140,27 @@ object JmsTransactedConsumer {
 
     def rollback[F[_]]: TransactionAction[F] = Rollback[F]()
 
-    def sendN[F[_]](messages: NonEmptyList[(JmsMessage, DestinationName)]): Send[F] =
+    def sendN[F[_]](
+      messages: NonEmptyList[(JmsMessage, DestinationName)]
+    ): TransactionAction[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): Send[F] =
+    ): TransactionAction[F] =
       Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
 
     def sendWithDelay[F[_]](
       message: JmsMessage,
       destination: DestinationName,
       duration: Option[FiniteDuration]
-    ): Send[F] =
+    ): TransactionAction[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]](message: JmsMessage, destination: DestinationName): Send[F] =
+    def send[F[_]](
+      message: JmsMessage,
+      destination: DestinationName
+    ): TransactionAction[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }

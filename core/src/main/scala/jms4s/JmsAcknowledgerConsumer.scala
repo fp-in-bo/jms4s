@@ -104,17 +104,31 @@ object JmsAcknowledgerConsumer {
   object AckAction {
 
     private[jms4s] case class Ack[F[_]]() extends AckAction[F] {
-      override def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifAck
+
+      override def fold(
+        ifAck: => F[Unit],
+        ifNoAck: => F[Unit],
+        ifSend: AckAction.Send[F] => F[Unit]
+      ): F[Unit] = ifAck
     }
 
     // if the client wants to ack groups of messages, it'll pass a sequence of NoAck and then a cumulative Ack
     private[jms4s] case class NoAck[F[_]]() extends AckAction[F] {
-      override def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] = ifNoAck
+
+      override def fold(
+        ifAck: => F[Unit],
+        ifNoAck: => F[Unit],
+        ifSend: AckAction.Send[F] => F[Unit]
+      ): F[Unit] = ifNoAck
     }
 
     case class Send[F[_]](messages: ToSend[F]) extends AckAction[F] {
 
-      override def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: Send[F] => F[Unit]): F[Unit] =
+      override def fold(
+        ifAck: => F[Unit],
+        ifNoAck: => F[Unit],
+        ifSend: AckAction.Send[F] => F[Unit]
+      ): F[Unit] =
         ifSend(this)
     }
 
@@ -128,21 +142,24 @@ object JmsAcknowledgerConsumer {
 
     def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
-    ): Send[F] =
+    ): AckAction[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): Send[F] = Send[F](ToSend(messages))
+    ): AckAction[F] = Send[F](ToSend(messages))
 
     def sendWithDelay[F[_]](
       message: JmsMessage,
       destination: DestinationName,
       duration: Option[FiniteDuration]
-    ): Send[F] =
+    ): AckAction[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
-    def send[F[_]](message: JmsMessage, destination: DestinationName): Send[F] =
+    def send[F[_]](
+      message: JmsMessage,
+      destination: DestinationName
+    ): AckAction[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
   }
 }
