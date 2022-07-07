@@ -114,7 +114,7 @@ val catsEffectV          = "3.3.12"
 val catsEffectScalaTestV = "1.4.0"
 val fs2V                 = "3.2.8"
 val log4catsV            = "2.3.2"
-val log4jSlf4jImplV      = "2.17.2"
+val log4jSlf4jImplV      = "2.18.0"
 
 val kindProjectorV    = "0.13.2"
 val betterMonadicForV = "0.3.1"
