@@ -38,7 +38,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       context = client.context
       receiveConsumer <- context
                           .createContext(SessionType.AutoAcknowledge)
-                          .flatMap(_.createJmsConsumer(destination, pollingInterval))
+                          .flatMap(_.createJmsConsumer(destination, 50.millis))
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
       msg         <- Resource.eval(context.createTextMessage(body))
     } yield (receiveConsumer, sendContext, msg)
