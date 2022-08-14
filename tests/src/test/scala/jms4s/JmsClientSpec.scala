@@ -23,7 +23,7 @@ package jms4s
 
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ Clock, IO, Ref, Resource }
-import cats.implicits._
+import cats.syntax.all._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
@@ -411,7 +411,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
   }
 
-  s"sendN $nMessages messages with delay in a Queue with pooled producer and consume them" in {
+  s"send a message with delay in a Queue with producer and consume it" in {
     val res = for {
       jmsClient <- jmsClientRes
       context   = jmsClient.context
