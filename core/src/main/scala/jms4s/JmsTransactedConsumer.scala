@@ -22,15 +22,11 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.kernel.MonadCancel
-import cats.effect.std.Queue
-import cats.effect.{ Async, Resource }
+import cats.effect.Async
 import cats.syntax.all._
-import fs2.Stream
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -40,48 +36,12 @@ trait JmsTransactedConsumer[F[_]] {
 
 object JmsTransactedConsumer {
 
-  private[jms4s] def make[F[_]: Async](
-    context: JmsContext[F],
-    inputDestinationName: DestinationName,
-    concurrencyLevel: Int,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    for {
-      pool <- Resource.eval(
-               Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
-             )
-      _ <- (0 until concurrencyLevel).toList
-            .traverse_(_ =>
-              for {
-                c        <- context.createContext(SessionType.Transacted)
-                consumer <- c.createJmsConsumer(inputDestinationName, pollingInterval)
-                _        <- Resource.eval(pool.offer((c, consumer, MessageFactory[F](c))))
-              } yield ()
-            )
-    } yield build(new JmsTransactedConsumerPool[F](pool), concurrencyLevel)
-
-  private def build[F[_]: Async](
-    pool: JmsTransactedConsumerPool[F],
-    concurrencyLevel: Int
-  ): JmsTransactedConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsTransactedConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]) =>
-      Stream
-        .emit(Stream.eval(pool.receive(f)))
-        .repeat
-        .parJoin(concurrencyLevel)
-        .compile
-        .drain
-
-  private[jms4s] class JmsTransactedConsumerPool[F[_]: Async](
-    private val pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
-  ) {
-
-    def receive(action: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]): F[Unit] =
-      MonadCancel[F].bracket(pool.take) {
-        case (context, consumer, mf) =>
+      rawConsumer.consume {
+        case (received, context, mf) =>
           for {
-            receive   <- consumer.receiveJmsMessage
-            txnAction <- action(receive, mf)
+            txnAction <- f(received, mf)
             _ <- txnAction.fold(
                   ifCommit = context.commit,
                   ifRollback = context.rollback,
@@ -94,9 +54,7 @@ object JmsTransactedConsumer {
                     } *> context.commit
                 )
           } yield ()
-      }(pool.offer)
-
-  }
+      }
 
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
     def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: TransactionAction.Send[F] => F[Unit]): F[Unit]

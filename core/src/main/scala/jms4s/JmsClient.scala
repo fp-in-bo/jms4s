@@ -24,6 +24,7 @@ package jms4s
 import cats.effect.{ Async, Resource }
 import jms4s.config.DestinationName
 import jms4s.jms._
+import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -34,21 +35,27 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
-    JmsTransactedConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
+    MessageConsumer
+      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.Transacted)
+      .map(JmsTransactedConsumer.make(_))
 
   def createAutoAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    JmsAutoAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
+    MessageConsumer
+      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
+      .map(JmsAutoAcknowledgerConsumer.make(_))
 
   def createAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    JmsAcknowledgerConsumer.make(context, inputDestinationName, concurrencyLevel, pollingInterval)
+    MessageConsumer
+      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
+      .map(JmsAcknowledgerConsumer.make(_))
 
   def createProducer(
     concurrencyLevel: Int

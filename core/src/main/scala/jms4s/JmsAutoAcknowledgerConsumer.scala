@@ -22,16 +22,12 @@
 package jms4s
 
 import cats.data.NonEmptyList
-import cats.effect.kernel.MonadCancel
-import cats.effect.std.Queue
-import cats.effect.{ Async, Resource, Sync }
+import cats.effect.{ Async, Sync }
 import cats.syntax.all._
-import fs2.Stream
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction.Send
 import jms4s.config.DestinationName
 import jms4s.jms._
-import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -41,62 +37,25 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 
 object JmsAutoAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Async](
-    context: JmsContext[F],
-    inputDestinationName: DestinationName,
-    concurrencyLevel: Int,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    for {
-      pool <- Resource.eval(
-               Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
-             )
-      _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
-            for {
-              ctx      <- context.createContext(SessionType.AutoAcknowledge)
-              consumer <- ctx.createJmsConsumer(inputDestinationName, pollingInterval)
-              _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
-            } yield ()
-          }
-    } yield build(new JmsAutoAckConsumerPool(pool), concurrencyLevel)
+  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsAutoAcknowledgerConsumer[F] =
+    build(rawConsumer)
 
-  private def build[F[_]: Async](
-    pool: JmsAutoAckConsumerPool[F],
-    concurrencyLevel: Int
-  ): JmsAutoAcknowledgerConsumer[F] =
-    (f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
-      Stream
-        .emit(Stream.eval(pool.receive(f)))
-        .repeat
-        .parJoin(concurrencyLevel)
-        .compile
-        .drain
-
-  private[jms4s] class JmsAutoAckConsumerPool[F[_]: Async](
-    private val pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])]
-  ) {
-
-    def receive(action: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit] =
-      MonadCancel[F].bracket(pool.take) {
-        case (context, consumer, mf) =>
+  private def build[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsAutoAcknowledgerConsumer[F] =
+    (action: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
+      rawConsumer.consume {
+        case (message, context, mf) =>
           for {
-            message               <- consumer.receiveJmsMessage
             res: AutoAckAction[F] <- action(message, mf)
             _ <- res.fold(
                   ifNoOp = Sync[F].unit,
                   ifSend = (send: Send[F]) =>
                     send.messages.messagesAndDestinations.traverse_ {
                       case (message, (name, delay)) =>
-                        delay.fold(
-                          ifEmpty = context.send(name, message)
-                        )(
-                          f = d => context.send(name, message, d)
-                        )
+                        delay.fold(context.send(name, message))(delay => context.send(name, message, delay))
                     }
                 )
           } yield ()
-      }(pool.offer)
-  }
+      }
 
   sealed abstract class AutoAckAction[F[_]] extends Product with Serializable {
     def fold(ifNoOp: => F[Unit], ifSend: AutoAckAction.Send[F] => F[Unit]): F[Unit]
