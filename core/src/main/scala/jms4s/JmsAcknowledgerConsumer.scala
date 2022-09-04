@@ -36,26 +36,27 @@ trait JmsAcknowledgerConsumer[F[_]] {
 
 object JmsAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsAcknowledgerConsumer[F] =
-    (action: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) => {
-      rawConsumer.consume {
-        case (message, context, mf) =>
-          for {
-            res <- action(message, mf)
-            _ <- res.fold(
-                  ifAck = Sync[F].blocking(message.wrapped.acknowledge()),
-                  ifNoAck = Sync[F].unit,
-                  ifSend = send =>
-                    send.messages.messagesAndDestinations.traverse_ {
-                      case (message, (name, delay)) =>
-                        delay.fold(ifEmpty = context.send(name, message))(
-                          f = d => context.send(name, message, d)
-                        )
-                    } *> Sync[F].blocking(message.wrapped.acknowledge())
-                )
-          } yield ()
-      }
-    }
+  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsAcknowledgerConsumer[F] =
+    (action: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) =>
+      {
+        rawConsumer.consume {
+          case (message, context, mf) =>
+            for {
+              res <- action(message, mf)
+              _ <- res.fold(
+                    ifAck = Sync[F].blocking(message.wrapped.acknowledge()),
+                    ifNoAck = Sync[F].unit,
+                    ifSend = send =>
+                      send.messages.messagesAndDestinations.traverse_ {
+                        case (message, (name, delay)) =>
+                          delay.fold(ifEmpty = context.send(name, message))(
+                            f = d => context.send(name, message, d)
+                          )
+                      } *> Sync[F].blocking(message.wrapped.acknowledge())
+                  )
+            } yield ()
+        }
+      }.compile.drain
 
   sealed abstract class AckAction[F[_]] extends Product with Serializable {
     def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: AckAction.Send[F] => F[Unit]): F[Unit]
