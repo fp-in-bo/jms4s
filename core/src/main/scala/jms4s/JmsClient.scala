@@ -36,7 +36,7 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
     pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
     MessageConsumer
-      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.Transacted)
+      .pooled[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.Transacted)
       .map(JmsTransactedConsumer.make(_))
 
   def createAutoAcknowledgerConsumer(
@@ -45,7 +45,7 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
     MessageConsumer
-      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
+      .pooled[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
       .map(JmsAutoAcknowledgerConsumer.make(_))
 
   def createAcknowledgerConsumer(
@@ -54,12 +54,12 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
     MessageConsumer
-      .pooled(context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
+      .pooled[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
       .map(JmsAcknowledgerConsumer.make(_))
 
   def createProducer(
     concurrencyLevel: Int
   ): Resource[F, JmsProducer[F]] =
-    JmsProducer.make(context, concurrencyLevel)
+    JmsProducer.make[F](context, concurrencyLevel)
 
 }

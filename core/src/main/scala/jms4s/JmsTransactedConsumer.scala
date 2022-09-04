@@ -36,7 +36,7 @@ trait JmsTransactedConsumer[F[_]] {
 
 object JmsTransactedConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsTransactedConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsTransactedConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]) =>
       rawConsumer.consume {
         case (received, context, mf) =>
@@ -54,7 +54,7 @@ object JmsTransactedConsumer {
                     } *> context.commit
                 )
           } yield ()
-      }
+      }.compile.drain
 
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
     def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: TransactionAction.Send[F] => F[Unit]): F[Unit]

@@ -37,10 +37,7 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 
 object JmsAutoAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsAutoAcknowledgerConsumer[F] =
-    build(rawConsumer)
-
-  private def build[F[_]: Async](rawConsumer: MessageConsumer[F, Unit]): JmsAutoAcknowledgerConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsAutoAcknowledgerConsumer[F] =
     (action: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
       rawConsumer.consume {
         case (message, context, mf) =>
@@ -55,7 +52,7 @@ object JmsAutoAcknowledgerConsumer {
                     }
                 )
           } yield ()
-      }
+      }.compile.drain
 
   sealed abstract class AutoAckAction[F[_]] extends Product with Serializable {
     def fold(ifNoOp: => F[Unit], ifSend: AutoAckAction.Send[F] => F[Unit]): F[Unit]
