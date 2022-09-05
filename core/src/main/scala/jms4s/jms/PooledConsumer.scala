@@ -31,7 +31,7 @@ import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
-private[jms4s] class MessageConsumer[F[_]: Concurrent](
+private[jms4s] class PooledConsumer[F[_]: Concurrent](
   pool: Queue[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])],
   concurrencyLevel: Int
 ) {
@@ -50,15 +50,15 @@ private[jms4s] class MessageConsumer[F[_]: Concurrent](
     Resource.make(pool.take)(pool.offer)
 }
 
-object MessageConsumer {
+object PooledConsumer {
 
-  private[jms4s] def pooled[F[_]: Async](
+  private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration,
     sessionType: SessionType
-  ): Resource[F, MessageConsumer[F]] =
+  ): Resource[F, PooledConsumer[F]] =
     for {
       pool <- Resource.eval(
                Queue.bounded[F, (JmsContext[F], JmsMessageConsumer[F], MessageFactory[F])](concurrencyLevel)
@@ -70,6 +70,6 @@ object MessageConsumer {
               _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }
-    } yield new MessageConsumer(pool, concurrencyLevel)
+    } yield new PooledConsumer(pool, concurrencyLevel)
 
 }
