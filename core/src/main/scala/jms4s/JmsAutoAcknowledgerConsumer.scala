@@ -37,7 +37,7 @@ trait JmsAutoAcknowledgerConsumer[F[_]] {
 
 object JmsAutoAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsAutoAcknowledgerConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: PooledConsumer[F]): JmsAutoAcknowledgerConsumer[F] =
     (action: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]) =>
       rawConsumer.consume {
         case (message, context, mf) =>

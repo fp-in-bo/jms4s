@@ -36,7 +36,7 @@ trait JmsTransactedConsumer[F[_]] {
 
 object JmsTransactedConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsTransactedConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: PooledConsumer[F]): JmsTransactedConsumer[F] =
     (f: (JmsMessage, MessageFactory[F]) => F[TransactionAction[F]]) =>
       rawConsumer.consume {
         case (received, context, mf) =>

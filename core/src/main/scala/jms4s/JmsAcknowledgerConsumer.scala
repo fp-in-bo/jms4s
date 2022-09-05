@@ -36,7 +36,7 @@ trait JmsAcknowledgerConsumer[F[_]] {
 
 object JmsAcknowledgerConsumer {
 
-  private[jms4s] def make[F[_]: Async](rawConsumer: MessageConsumer[F]): JmsAcknowledgerConsumer[F] =
+  private[jms4s] def make[F[_]: Async](rawConsumer: PooledConsumer[F]): JmsAcknowledgerConsumer[F] =
     (action: (JmsMessage, MessageFactory[F]) => F[AckAction[F]]) =>
       {
         rawConsumer.consume {
