@@ -24,7 +24,9 @@ package jms4s.basespec
 import cats.data.NonEmptyList
 import cats.effect._
 import cats.implicits._
-import jms4s.JmsClient
+import fs2.concurrent.Channel
+import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
+import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
@@ -68,6 +70,26 @@ trait Jms4sBaseSpec {
     receiveBodyAsTextOrFail(consumer)
       .flatMap(body => received.update(_ + body) *> received.get)
       .iterateUntil(_.size == nMessages)
+
+  def receiveUntil(
+    consumer: JmsAutoAcknowledgerConsumer[IO],
+    nMessages: Long
+  ): IO[List[JmsTextMessage]] =
+    for {
+      channel <- Channel.synchronous[IO, JmsTextMessage]
+      fiber <- consumer.handle {
+                case (msg, _) =>
+                  msg
+                    .asJmsTextMessageF[IO]
+                    .flatMap(channel.send)
+                    .as(AutoAckAction.noOp)
+              }.start
+      count <- channel.stream
+                .take(nMessages)
+                .onFinalize(fiber.cancel)
+                .compile
+                .toList
+    } yield count
 
   def messageFactory(
     message: JmsTextMessage,

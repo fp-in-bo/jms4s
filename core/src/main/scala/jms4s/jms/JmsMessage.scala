@@ -27,6 +27,7 @@ import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
 import jms4s.jms.utils.TryUtils._
 
 import javax.jms.{ Destination, Message, TextMessage }
+import scala.jdk.CollectionConverters.EnumerationHasAsScala
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
@@ -45,6 +46,10 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def asTextF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[String] =
     ApplicativeError[F, Throwable].fromTry(attemptAsText)
 
+  /**
+   * settings properties works only on newly created message, if invoked on an already existing message they will fail.
+   * Clone the message first and then modify it.
+   */
   def setJMSCorrelationId(correlationId: String): Try[Unit]     = Try(wrapped.setJMSCorrelationID(correlationId))
   def setJMSReplyTo(destination: JmsDestination): Try[Unit]     = Try(wrapped.setJMSReplyTo(destination.wrapped))
   def setJMSType(`type`: String): Try[Unit]                     = Try(wrapped.setJMSType(`type`))
@@ -96,6 +101,8 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getStringProperty(name: String): Option[String] =
     Try(Option(wrapped.getStringProperty(name))).toOpt
 
+  def getObjectProperty(name: String): Option[AnyRef] = Try(Option(wrapped.getObjectProperty(name))).toOpt
+
   def setBooleanProperty(name: String, value: Boolean): Try[Unit] = Try(wrapped.setBooleanProperty(name, value))
   def setByteProperty(name: String, value: Byte): Try[Unit]       = Try(wrapped.setByteProperty(name, value))
   def setDoubleProperty(name: String, value: Double): Try[Unit]   = Try(wrapped.setDoubleProperty(name, value))
@@ -104,7 +111,18 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def setLongProperty(name: String, value: Long): Try[Unit]       = Try(wrapped.setLongProperty(name, value))
   def setShortProperty(name: String, value: Short): Try[Unit]     = Try(wrapped.setShortProperty(name, value))
   def setStringProperty(name: String, value: String): Try[Unit]   = Try(wrapped.setStringProperty(name, value))
+  def setObjectProperty(name: String, value: AnyRef): Try[Unit]   = Try(wrapped.setObjectProperty(name, value))
 
+  def propertyNames: Try[Set[String]] =
+    properties.map(_.keys.toSet)
+
+  def properties: Try[Map[String, AnyRef]] =
+    Try {
+      wrapped.getPropertyNames.asScala
+        .map(_.asInstanceOf[String])
+        .map(key => (key, wrapped.getObjectProperty(key)))
+        .toMap
+    }
 }
 
 object JmsMessage {
@@ -125,9 +143,9 @@ object JmsMessage {
       buf.toList
     }
 
-    Try {
+    Try { //todo use the new propertyNames
       s"""
-         |${propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")}
+         |${propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")} 
          |JMSMessageID        ${message.getJMSMessageID}
          |JMSTimestamp        ${message.getJMSTimestamp}
          |JMSCorrelationID    ${message.getJMSCorrelationID}
