@@ -1,7 +1,7 @@
 import sbtghactions.JavaSpec.Distribution.Adopt
 
 val Scala213 = "2.13.8"
-val Scala212 = "2.12.16"
+val Scala212 = "2.12.17"
 val Java18   = JavaSpec(Adopt, "8")
 val Java11   = JavaSpec(Adopt, "11")
 
@@ -114,7 +114,7 @@ val catsEffectV          = "3.3.14"
 val catsEffectScalaTestV = "1.4.0"
 val fs2V                 = "3.3.0"
 val log4catsV            = "2.4.0"
-val log4jSlf4jImplV      = "2.18.0"
+val log4jSlf4jImplV      = "2.19.0"
 
 val kindProjectorV    = "0.13.2"
 val betterMonadicForV = "0.3.1"
