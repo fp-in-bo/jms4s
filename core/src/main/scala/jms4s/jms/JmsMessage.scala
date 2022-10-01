@@ -113,19 +113,18 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def setStringProperty(name: String, value: String): Try[Unit]   = Try(wrapped.setStringProperty(name, value))
   def setObjectProperty(name: String, value: AnyRef): Try[Unit]   = Try(wrapped.setObjectProperty(name, value))
 
-  def propertyNames: Try[Set[String]] =
-    properties.map(_.keys.toSet)
-
   def properties: Try[Map[String, AnyRef]] =
-    Try {
-      wrapped.getPropertyNames.asScala
-        .map(_.asInstanceOf[String])
-        .map(key => (key, wrapped.getObjectProperty(key)))
-        .toMap
-    }
+    JmsMessage.properties(wrapped)
 }
 
 object JmsMessage {
+  def properties(msg: Message): Try[Map[String, AnyRef]] =
+    Try {
+      msg.getPropertyNames.asScala
+        .map(_.asInstanceOf[String])
+        .map(key => (key, msg.getObjectProperty(key)))
+        .toMap
+    }
 
   implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
@@ -133,19 +132,9 @@ object JmsMessage {
       case _                    => Failure(new RuntimeException())
     }
 
-    def propertyNames: List[String] = {
-      val e   = message.getPropertyNames
-      val buf = collection.mutable.Buffer.empty[String]
-      while (e.hasMoreElements) {
-        val propertyName = e.nextElement.asInstanceOf[String]
-        buf += propertyName
-      }
-      buf.toList
-    }
-
-    Try { //todo use the new propertyNames
+    Try {
       s"""
-         |${propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")} 
+         |${properties(message).map(_.mkString("\n")).getOrElse("")}
          |JMSMessageID        ${message.getJMSMessageID}
          |JMSTimestamp        ${message.getJMSTimestamp}
          |JMSCorrelationID    ${message.getJMSCorrelationID}
