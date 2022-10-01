@@ -61,6 +61,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                           }.start
           _ <- logger.info(s"Consumer started. Collecting messages from the queue...")
           receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)) >> received.get)
+                               .timeout(timeout)
                                .guarantee(consumerFiber.cancel)
         } yield assert(receivedMessages == bodies)
     }
