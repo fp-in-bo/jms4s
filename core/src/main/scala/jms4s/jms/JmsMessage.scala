@@ -27,7 +27,6 @@ import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
 import jms4s.jms.utils.TryUtils._
 
 import javax.jms.{ Destination, Message, TextMessage }
-import scala.jdk.CollectionConverters.EnumerationHasAsScala
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
@@ -101,7 +100,8 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getStringProperty(name: String): Option[String] =
     Try(Option(wrapped.getStringProperty(name))).toOpt
 
-  def getObjectProperty(name: String): Option[AnyRef] = Try(Option(wrapped.getObjectProperty(name))).toOpt
+  def getObjectProperty(name: String): Option[Any] =
+    Try(Option(wrapped.getObjectProperty(name))).toOpt
 
   def setBooleanProperty(name: String, value: Boolean): Try[Unit] = Try(wrapped.setBooleanProperty(name, value))
   def setByteProperty(name: String, value: Byte): Try[Unit]       = Try(wrapped.setByteProperty(name, value))
@@ -111,19 +111,22 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def setLongProperty(name: String, value: Long): Try[Unit]       = Try(wrapped.setLongProperty(name, value))
   def setShortProperty(name: String, value: Short): Try[Unit]     = Try(wrapped.setShortProperty(name, value))
   def setStringProperty(name: String, value: String): Try[Unit]   = Try(wrapped.setStringProperty(name, value))
-  def setObjectProperty(name: String, value: AnyRef): Try[Unit]   = Try(wrapped.setObjectProperty(name, value))
+  def setObjectProperty(name: String, value: Any): Try[Unit]      = Try(wrapped.setObjectProperty(name, value))
 
-  def properties: Try[Map[String, AnyRef]] =
+  def properties: Try[Map[String, Any]] =
     JmsMessage.properties(wrapped)
 }
 
 object JmsMessage {
-  def properties(msg: Message): Try[Map[String, AnyRef]] =
+
+  def properties(msg: Message): Try[Map[String, Any]] =
     Try {
-      msg.getPropertyNames.asScala
-        .map(_.asInstanceOf[String])
-        .map(key => (key, msg.getObjectProperty(key)))
-        .toMap
+      val buf = collection.mutable.Map.empty[String, Any]
+      msg.getPropertyNames.asIterator().forEachRemaining { e =>
+        val key = e.asInstanceOf[String]
+        buf += key -> msg.getObjectProperty(key)
+      }
+      buf.toMap
     }
 
   implicit val showMessage: Show[Message] = Show.show[Message] { message =>
