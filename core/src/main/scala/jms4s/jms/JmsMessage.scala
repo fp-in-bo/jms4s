@@ -121,10 +121,11 @@ object JmsMessage {
 
   def properties(msg: Message): Try[Map[String, Any]] =
     Try {
-      val buf = collection.mutable.Map.empty[String, Any]
-      msg.getPropertyNames.asIterator().forEachRemaining { e =>
-        val key = e.asInstanceOf[String]
-        buf += key -> msg.getObjectProperty(key)
+      val propertyNames = msg.getPropertyNames
+      val buf           = collection.mutable.Map.empty[String, Any]
+      while (propertyNames.hasMoreElements) {
+        val propertyName = propertyNames.nextElement.asInstanceOf[String]
+        buf += propertyName -> msg.getObjectProperty(propertyName)
       }
       buf.toMap
     }
