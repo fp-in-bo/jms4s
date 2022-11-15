@@ -28,6 +28,8 @@ import jms4s.config.DestinationName
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
+import scala.concurrent.duration.DurationInt
+
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   private def contexts(destination: DestinationName) =
