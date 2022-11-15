@@ -51,12 +51,12 @@ class MessageFactory[F[_]](private val context: JmsContext[F]) extends AnyVal {
       from.getJMSReplyTo.traverse_ {
         case queue: Queue => to.setJMSReplyTo(new JmsQueue(queue))
         case topic: Topic => to.setJMSReplyTo(new JmsTopic(topic))
-        case _            => Failure(new RuntimeException("Unsupported destination"))
+        case d            => Failure(new RuntimeException(s"Unsupported destination: $d"))
       },
       from.getJMSDestination.traverse_ {
         case queue: Queue => to.setJMSDestination(new JmsQueue(queue))
         case topic: Topic => to.setJMSDestination(new JmsTopic(topic))
-        case _            => Failure(new RuntimeException("Unsupported destination"))
+        case d            => Failure(new RuntimeException(s"Unsupported destination: $d"))
       },
       from.getJMSDeliveryMode.traverse_(to.setJMSDeliveryMode),
       from.getJMSRedelivered.traverse_(to.setJMSRedelivered),
