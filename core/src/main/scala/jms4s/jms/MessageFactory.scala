@@ -21,10 +21,51 @@
 
 package jms4s.jms
 
+import cats.syntax.all._
+import cats.{ Applicative, MonadThrow }
+import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
 import jms4s.jms.JmsMessage.JmsTextMessage
+
+import javax.jms.{ Queue, Topic }
+import scala.util.{ Failure, Try }
 
 class MessageFactory[F[_]](private val context: JmsContext[F]) extends AnyVal {
   def makeTextMessage(value: String): F[JmsTextMessage] = context.createTextMessage(value)
+
+  def cloneMessageF(original: JmsTextMessage)(implicit mt: MonadThrow[F]): F[JmsTextMessage] =
+    attemptCloneMessage(original).flatMap(_.liftTo[F])
+
+  def attemptCloneMessage(original: JmsTextMessage)(implicit a: Applicative[F]): F[Either[Throwable, JmsTextMessage]] =
+    original.getText
+      .traverse(makeTextMessage)
+      .map {
+        _.flatMap(copied => copyMessageHeaders(original, copied).as(copied))
+      }
+      .map(_.toEither)
+
+  private def copyMessageHeaders(from: JmsMessage, to: JmsMessage): Try[Unit] =
+    (
+      from.getJMSMessageId.traverse_(to.setJMSMessageID),
+      from.getJMSTimestamp.traverse_(to.setJMSTimestamp),
+      from.getJMSCorrelationId.traverse_(to.setJMSCorrelationId),
+      from.getJMSReplyTo.traverse_ {
+        case queue: Queue => to.setJMSReplyTo(new JmsQueue(queue))
+        case topic: Topic => to.setJMSReplyTo(new JmsTopic(topic))
+        case d            => Failure(new RuntimeException(s"Unsupported destination: $d"))
+      },
+      from.getJMSDestination.traverse_ {
+        case queue: Queue => to.setJMSDestination(new JmsQueue(queue))
+        case topic: Topic => to.setJMSDestination(new JmsTopic(topic))
+        case d            => Failure(new RuntimeException(s"Unsupported destination: $d"))
+      },
+      from.getJMSDeliveryMode.traverse_(to.setJMSDeliveryMode),
+      from.getJMSRedelivered.traverse_(to.setJMSRedelivered),
+      from.getJMSType.traverse_(to.setJMSType),
+      from.getJMSExpiration.traverse_(to.setJMSExpiration),
+      from.getJMSPriority.traverse_(to.setJMSPriority),
+      from.properties.traverse_(props => props.toList.traverse_ { case (k, v) => to.setObjectProperty(k, v) })
+    ).combineAll
+
 }
 
 object MessageFactory {

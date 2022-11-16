@@ -42,9 +42,7 @@ object activeMQ {
   case class Endpoint(host: String, port: Int)
   case class ClientId(value: String) extends AnyVal
 
-  def makeJmsClient[F[_]: Async: Logger](
-    config: Config
-  ): Resource[F, JmsClient[F]] =
+  def makeJmsClient[F[_]: Async: Logger](config: Config): Resource[F, JmsClient[F]] =
     for {
       context <- Resource.make(
                   Logger[F].info(s"Opening context to MQ at ${hosts(config.endpoints)}...") *>

@@ -45,6 +45,10 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def asTextF[F[_]](implicit a: ApplicativeError[F, Throwable]): F[String] =
     ApplicativeError[F, Throwable].fromTry(attemptAsText)
 
+  /**
+   * settings properties works only on newly created message, if invoked on an already existing message they will fail.
+   * Clone the message first and then modify it.
+   */
   def setJMSCorrelationId(correlationId: String): Try[Unit]     = Try(wrapped.setJMSCorrelationID(correlationId))
   def setJMSReplyTo(destination: JmsDestination): Try[Unit]     = Try(wrapped.setJMSReplyTo(destination.wrapped))
   def setJMSType(`type`: String): Try[Unit]                     = Try(wrapped.setJMSType(`type`))
@@ -96,6 +100,9 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getStringProperty(name: String): Option[String] =
     Try(Option(wrapped.getStringProperty(name))).toOpt
 
+  def getObjectProperty(name: String): Option[Any] =
+    Try(Option(wrapped.getObjectProperty(name))).toOpt
+
   def setBooleanProperty(name: String, value: Boolean): Try[Unit] = Try(wrapped.setBooleanProperty(name, value))
   def setByteProperty(name: String, value: Byte): Try[Unit]       = Try(wrapped.setByteProperty(name, value))
   def setDoubleProperty(name: String, value: Double): Try[Unit]   = Try(wrapped.setDoubleProperty(name, value))
@@ -104,10 +111,24 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def setLongProperty(name: String, value: Long): Try[Unit]       = Try(wrapped.setLongProperty(name, value))
   def setShortProperty(name: String, value: Short): Try[Unit]     = Try(wrapped.setShortProperty(name, value))
   def setStringProperty(name: String, value: String): Try[Unit]   = Try(wrapped.setStringProperty(name, value))
+  def setObjectProperty(name: String, value: Any): Try[Unit]      = Try(wrapped.setObjectProperty(name, value))
 
+  def properties: Try[Map[String, Any]] =
+    JmsMessage.properties(wrapped)
 }
 
 object JmsMessage {
+
+  def properties(msg: Message): Try[Map[String, Any]] =
+    Try {
+      val propertyNames = msg.getPropertyNames
+      val buf           = collection.mutable.Map.empty[String, Any]
+      while (propertyNames.hasMoreElements) {
+        val propertyName = propertyNames.nextElement.asInstanceOf[String]
+        buf += propertyName -> msg.getObjectProperty(propertyName)
+      }
+      buf.toMap
+    }
 
   implicit val showMessage: Show[Message] = Show.show[Message] { message =>
     def getStringContent: Try[String] = message match {
@@ -115,19 +136,9 @@ object JmsMessage {
       case _                    => Failure(new RuntimeException())
     }
 
-    def propertyNames: List[String] = {
-      val e   = message.getPropertyNames
-      val buf = collection.mutable.Buffer.empty[String]
-      while (e.hasMoreElements) {
-        val propertyName = e.nextElement.asInstanceOf[String]
-        buf += propertyName
-      }
-      buf.toList
-    }
-
     Try {
       s"""
-         |${propertyNames.map(pn => s"$pn       ${message.getObjectProperty(pn)}").mkString("\n")}
+         |${properties(message).map(_.mkString("\n")).getOrElse("")}
          |JMSMessageID        ${message.getJMSMessageID}
          |JMSTimestamp        ${message.getJMSTimestamp}
          |JMSCorrelationID    ${message.getJMSCorrelationID}
