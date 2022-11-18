@@ -1,6 +1,6 @@
 import sbtghactions.JavaSpec.Distribution.Adopt
 
-val Scala213 = "2.13.8"
+val Scala213 = "2.13.10"
 val Scala212 = "2.12.17"
 val Java18   = JavaSpec(Adopt, "8")
 val Java11   = JavaSpec(Adopt, "11")
@@ -106,12 +106,12 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
     )
 )
 
-val catsV                = "2.8.0"
+val catsV                = "2.9.0"
 val jmsV                 = "2.0.1"
-val ibmMQV               = "9.3.0.0"
+val ibmMQV               = "9.3.1.0"
 val activeMQV            = "2.19.1"
-val catsEffectV          = "3.3.14"
-val catsEffectScalaTestV = "1.4.0"
+val catsEffectV          = "3.4.0"
+val catsEffectScalaTestV = "1.5.0"
 val fs2V                 = "3.3.0"
 val log4catsV            = "2.5.0"
 val log4jSlf4jImplV      = "2.19.0"

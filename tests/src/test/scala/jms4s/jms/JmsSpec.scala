@@ -28,7 +28,7 @@ import jms4s.config.DestinationName
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.DurationInt
 
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
@@ -69,7 +69,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     contexts(topicName1).use {
       case (consumer, sendContext, msg) =>
         for {
-          _   <- (IO.delay(10.millis) >> sendContext.send(topicName1, msg)).start
+          _   <- sendContext.send(topicName1, msg)
           rec <- receiveBodyAsTextOrFail(consumer)
         } yield assert(rec == body)
     }
