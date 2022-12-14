@@ -24,7 +24,7 @@ package jms4s.jms
 import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect.{ Clock, IO, Resource }
 import jms4s.basespec.Jms4sBaseSpec
-import jms4s.config.DestinationName
+import jms4s.config.Destination
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -32,7 +32,7 @@ import scala.concurrent.duration.DurationInt
 
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
-  private def contexts(destination: DestinationName) =
+  private def contexts(destination: Destination) =
     for {
       client  <- jmsClientRes
       context = client.context
@@ -52,7 +52,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(text == body)
     }
   }
-  "publish and then receive with a delay" in {
+  "publish to a queue and then receive with a delay" in {
     contexts(inputQueueName).use {
       case (consumer, sendContext, msg) =>
         for {
@@ -70,6 +70,38 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       case (consumer, sendContext, msg) =>
         for {
           _   <- sendContext.send(topicName1, msg)
+          rec <- receiveBodyAsTextOrFail(consumer)
+        } yield assert(rec == body)
+    }
+  }
+
+  "publish to a temporary queue and then receive" in {
+    contexts(temporaryInputQueue).use {
+      case (receiveConsumer, sendContext, msg) =>
+        for {
+          _    <- sendContext.send(temporaryInputQueue, msg)
+          text <- receiveBodyAsTextOrFail(receiveConsumer)
+        } yield assert(text == body)
+    }
+  }
+  "publish to a temporary queue and then receive with a delay" in {
+    contexts(temporaryInputQueue).use {
+      case (consumer, sendContext, msg) =>
+        for {
+          producerTimestamp <- Clock[IO].realTime
+          _                 <- sendContext.send(temporaryInputQueue, msg, delay)
+          msg               <- consumer.receiveJmsMessage
+          deliveryTime      <- Clock[IO].realTime
+          actualBody        <- msg.asTextF[IO]
+          actualDelay       = (deliveryTime - producerTimestamp)
+        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+    }
+  }
+  "publish to a tempoary topic and then receive" in {
+    contexts(temporaryTopic).use {
+      case (consumer, sendContext, msg) =>
+        for {
+          _   <- sendContext.send(temporaryTopic, msg)
           rec <- receiveBodyAsTextOrFail(consumer)
         } yield assert(rec == body)
     }
