@@ -111,6 +111,8 @@ val catsV                = "2.9.0"
 val jmsV = "1.1-rev-1"
 val ibmMQV               = "9.3.1.0"
 val activeMQV            = "2.19.1"
+val sqsV                 = "2.0.2"
+val awsV                 = "2.18.1"
 val catsEffectV          = "3.4.4"
 val catsEffectScalaTestV = "1.5.0"
 val fs2V                 = "3.4.0"
@@ -149,19 +151,31 @@ lazy val activeMQArtemis = project
   .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
+lazy val simpleQueueService = project
+  .in(file("sqs"))
+  .settings(commonSettings, releaseSettings)
+  .settings(name := "jms4s-simple-queue-service")
+  .settings(libraryDependencies ++= Seq(
+    "com.amazonaws" % "amazon-sqs-java-messaging-lib" % sqsV,
+    "software.amazon.awssdk" % "auth" %awsV,
+    "software.amazon.awssdk" % "sqs" %awsV
+  ))
+  .settings(Test / parallelExecution := false)
+  .dependsOn(core)
+
 lazy val tests = project
   .in(file("tests"))
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
   .settings(Test / parallelExecution := false)
-  .dependsOn(ibmMQ, activeMQArtemis)
+  .dependsOn(ibmMQ, activeMQArtemis, simpleQueueService)
 
 lazy val examples = project
   .in(file("examples"))
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
-  .dependsOn(ibmMQ, activeMQArtemis)
+  .dependsOn(ibmMQ, activeMQArtemis, simpleQueueService)
 
 lazy val site = project
   .in(file("site"))
@@ -169,7 +183,7 @@ lazy val site = project
   .enablePlugins(MdocPlugin)
   .enablePlugins(NoPublishPlugin)
   .settings(commonSettings)
-  .dependsOn(core, ibmMQ, activeMQArtemis)
+  .dependsOn(core, ibmMQ, activeMQArtemis, simpleQueueService)
   .settings {
     import microsites._
     Seq(
