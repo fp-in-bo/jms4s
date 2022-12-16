@@ -29,21 +29,19 @@ import jms4s.config.DestinationName
 import jms4s.jms._
 import jms4s.model.SessionType
 
-import scala.concurrent.duration.FiniteDuration
-
 trait JmsProducer[F[_]] {
 
   def sendN(
     messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
   ): F[Unit]
 
-  def sendNWithDelay(
-    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
-  ): F[Unit]
-
-  def sendWithDelay(
-    messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-  ): F[Unit]
+//  def sendNWithDelay(
+//    messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
+//  ): F[Unit]
+//
+//  def sendWithDelay(
+//    messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+//  ): F[Unit]
 
   def send(messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit]
 
@@ -97,33 +95,33 @@ object JmsProducer {
             } yield ()
         }
 
-      override def sendNWithDelay(
-        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
-      ): F[Unit] =
-        pool.acquireAndUseContext {
-          case (ctx, mf) =>
-            for {
-              messagesWithDestinationsAndDelayes <- f(mf)
-              _ <- messagesWithDestinationsAndDelayes.traverse_ {
-                    case (message, (destinatioName, duration)) =>
-                      duration.fold(ctx.send(destinatioName, message))(delay =>
-                        ctx.send(destinatioName, message, delay)
-                      )
-                  }
-
-            } yield ()
-        }
-
-      override def sendWithDelay(
-        f: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-      ): F[Unit] =
-        pool.acquireAndUseContext {
-          case (ctx, mf) =>
-            for {
-              (message, (destinationName, delay)) <- f(mf)
-              _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
-            } yield ()
-        }
+//      override def sendNWithDelay(
+//        f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
+//      ): F[Unit] =
+//        pool.acquireAndUseContext {
+//          case (ctx, mf) =>
+//            for {
+//              messagesWithDestinationsAndDelayes <- f(mf)
+//              _ <- messagesWithDestinationsAndDelayes.traverse_ {
+//                    case (message, (destinatioName, duration)) =>
+//                      duration.fold(ctx.send(destinatioName, message))(delay =>
+//                        ctx.send(destinatioName, message, delay)
+//                      )
+//                  }
+//
+//            } yield ()
+//        }
+//
+//      override def sendWithDelay(
+//        f: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+//      ): F[Unit] =
+//        pool.acquireAndUseContext {
+//          case (ctx, mf) =>
+//            for {
+//              (message, (destinationName, delay)) <- f(mf)
+//              _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
+//            } yield ()
+//        }
 
       override def send(f: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit] =
         pool.acquireAndUseContext {

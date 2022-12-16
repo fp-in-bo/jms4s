@@ -107,7 +107,8 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
 )
 
 val catsV                = "2.9.0"
-val jmsV                 = "2.0.1"
+//val jmsV                 = "2.0.1"
+val jmsV = "1.1-rev-1"
 val ibmMQV               = "9.3.1.0"
 val activeMQV            = "2.19.1"
 val catsEffectV          = "3.4.4"
@@ -216,7 +217,8 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector"     % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
   libraryDependencies ++= Seq(
-    "javax.jms"     % "javax.jms-api"                  % jmsV,
+//    "javax.jms"     % "javax.jms-api"                  % jmsV,
+    "javax.jms" % "jms-api" % jmsV,
     "org.typelevel" %% "cats-core"                     % catsV,
     "org.typelevel" %% "cats-effect"                   % catsEffectV,
     "co.fs2"        %% "fs2-core"                      % fs2V,
@@ -241,7 +243,8 @@ lazy val releaseSettings = {
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
       Developer("faustin0", "Fausto Di Natale", "dinatalefausto@gmail.com", url("https://github.com/faustin0")),
-      Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti"))
+      Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti")),
+      Developer("adamretter", "Adam Retter", "adam.retter@googlemail.com", url("https://github.com/adamretter"))
     )
   )
 }

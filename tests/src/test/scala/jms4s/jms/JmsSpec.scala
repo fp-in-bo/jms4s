@@ -22,7 +22,7 @@
 package jms4s.jms
 
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ Clock, IO, Resource }
+import cats.effect.{ IO, Resource }
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.DestinationName
 import jms4s.model.SessionType
@@ -52,19 +52,19 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(text == body)
     }
   }
-  "publish and then receive with a delay" in {
-    contexts(inputQueueName).use {
-      case (consumer, sendContext, msg) =>
-        for {
-          producerTimestamp <- Clock[IO].realTime
-          _                 <- sendContext.send(inputQueueName, msg, delay)
-          msg               <- consumer.receiveJmsMessage
-          deliveryTime      <- Clock[IO].realTime
-          actualBody        <- msg.asTextF[IO]
-          actualDelay       = (deliveryTime - producerTimestamp)
-        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
-    }
-  }
+//  "publish and then receive with a delay" in {
+//    contexts(inputQueueName).use {
+//      case (consumer, sendContext, msg) =>
+//        for {
+//          producerTimestamp <- Clock[IO].realTime
+//          _                 <- sendContext.send(inputQueueName, msg, delay)
+//          msg               <- consumer.receiveJmsMessage
+//          deliveryTime      <- Clock[IO].realTime
+//          actualBody        <- msg.asTextF[IO]
+//          actualDelay       = (deliveryTime - producerTimestamp)
+//        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+//    }
+//  }
   "publish to a topic and then receive" in {
     contexts(topicName1).use {
       case (consumer, sendContext, msg) =>

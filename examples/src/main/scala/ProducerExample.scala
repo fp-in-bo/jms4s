@@ -26,14 +26,12 @@ import jms4s.config.{ DestinationName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.MessageFactory
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
-
 class ProducerExample extends IOApp {
 
   val jmsClient: Resource[IO, JmsClient[IO]] = null // see providers section!
   val outputTopic: TopicName                 = TopicName("YUOR.OUTPUT.TOPIC")
-  val delay: FiniteDuration                  = 10.millis
-  val messageStrings: NonEmptyList[String]   = NonEmptyList.fromListUnsafe((0 until 10).map(i => s"$i").toList)
+//  val delay: FiniteDuration                  = 10.millis
+  val messageStrings: NonEmptyList[String] = NonEmptyList.fromListUnsafe((0 until 10).map(i => s"$i").toList)
 
   override def run(args: List[String]): IO[ExitCode] = {
     val producerRes = for {
@@ -45,9 +43,9 @@ class ProducerExample extends IOApp {
       {
         for {
           _ <- producer.sendN(makeN(messageStrings, outputTopic))
-          _ <- producer.sendNWithDelay(makeNWithDelay(messageStrings, outputTopic, delay))
+//          _ <- producer.sendNWithDelay(makeNWithDelay(messageStrings, outputTopic, delay))
           _ <- producer.send(make1(messageStrings.head, outputTopic))
-          _ <- producer.sendWithDelay(make1WithDelay(messageStrings.head, outputTopic, delay))
+//          _ <- producer.sendWithDelay(make1WithDelay(messageStrings.head, outputTopic, delay))
         } yield ()
       }.as(ExitCode.Success)
     }
@@ -73,25 +71,25 @@ class ProducerExample extends IOApp {
     }
   }
 
-  private def make1WithDelay(
-    text: String,
-    destinationName: DestinationName,
-    delay: FiniteDuration
-  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = { mFactory =>
-    mFactory
-      .makeTextMessage(text)
-      .map(message => (message, (destinationName, Some(delay))))
-  }
-
-  private def makeNWithDelay(
-    texts: NonEmptyList[String],
-    destinationName: DestinationName,
-    delay: FiniteDuration
-  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))]] = { mFactory =>
-    texts.traverse { text =>
-      mFactory
-        .makeTextMessage(text)
-        .map(message => (message, (destinationName, Some(delay))))
-    }
-  }
+//  private def make1WithDelay(
+//    text: String,
+//    destinationName: DestinationName,
+//    delay: FiniteDuration
+//  ): MessageFactory[IO] => IO[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))] = { mFactory =>
+//    mFactory
+//      .makeTextMessage(text)
+//      .map(message => (message, (destinationName, Some(delay))))
+//  }
+//
+//  private def makeNWithDelay(
+//    texts: NonEmptyList[String],
+//    destinationName: DestinationName,
+//    delay: FiniteDuration
+//  ): MessageFactory[IO] => IO[NonEmptyList[(JmsTextMessage, (DestinationName, Option[FiniteDuration]))]] = { mFactory =>
+//    texts.traverse { text =>
+//      mFactory
+//        .makeTextMessage(text)
+//        .map(message => (message, (destinationName, Some(delay))))
+//    }
+//  }
 }

@@ -50,7 +50,7 @@ object JmsTransactedConsumer {
                       case (message, (name, delay)) =>
                         delay.fold(
                           context.send(name, message)
-                        )(d => context.send(name, message, d))
+                        )(_ => context.send(name, message))
                     } *> context.commit
                 )
           } yield ()
@@ -103,17 +103,17 @@ object JmsTransactedConsumer {
     ): TransactionAction[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]](
-      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): TransactionAction[F] =
-      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
-
-    def sendWithDelay[F[_]](
-      message: JmsMessage,
-      destination: DestinationName,
-      duration: Option[FiniteDuration]
-    ): TransactionAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
+//    def sendNWithDelay[F[_]](
+//      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+//    ): TransactionAction[F] =
+//      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
+//
+//    def sendWithDelay[F[_]](
+//      message: JmsMessage,
+//      destination: DestinationName,
+//      duration: Option[FiniteDuration]
+//    ): TransactionAction[F] =
+//      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
     def send[F[_]](
       message: JmsMessage,

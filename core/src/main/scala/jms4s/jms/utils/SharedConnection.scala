@@ -19,25 +19,27 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s.jms
+package jms4s.jms.utils
 
-import cats.effect.{ Async, Spawn, Sync }
-import cats.syntax.all._
+import java.util.concurrent.atomic.AtomicInteger
+import javax.jms.Connection
 
-import scala.concurrent.duration.FiniteDuration
-import javax.jms.MessageConsumer
+class SharedConnection(connection: Connection) extends AutoCloseable {
+  private val referenceCount = new AtomicInteger(1)
 
-class JmsMessageConsumer[F[_]: Async] private[jms4s] (
-  private[jms4s] val wrapped: MessageConsumer,
-  private[jms4s] val pollingInterval: FiniteDuration
-) {
+  def share(): Connection = {
+    referenceCount.incrementAndGet()
+    connection
+  }
 
-  val receiveJmsMessage: F[JmsMessage] =
-    for {
-      recOpt <- Sync[F].blocking(Option(wrapped.receiveNoWait()))
-      rec <- recOpt match {
-              case Some(message) => Sync[F].pure(new JmsMessage(message))
-              case None          => Spawn[F].cede >> Async[F].sleep(pollingInterval) >> receiveJmsMessage
-            }
-    } yield rec
+  override def close(): Unit = {
+    val count = referenceCount.decrementAndGet()
+    if (count == 0) {
+      // stop the connection
+      connection.stop()
+
+      // close the connection
+      connection.close()
+    }
+  }
 }

@@ -50,7 +50,7 @@ object JmsAcknowledgerConsumer {
                       send.messages.messagesAndDestinations.traverse_ {
                         case (message, (name, delay)) =>
                           delay.fold(ifEmpty = context.send(name, message))(
-                            f = d => context.send(name, message, d)
+                            f = _ => context.send(name, message)
                           )
                       } *> Sync[F].blocking(message.wrapped.acknowledge())
                   )
@@ -106,16 +106,16 @@ object JmsAcknowledgerConsumer {
     ): AckAction[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]](
-      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): AckAction[F] = Send[F](ToSend(messages))
-
-    def sendWithDelay[F[_]](
-      message: JmsMessage,
-      destination: DestinationName,
-      duration: Option[FiniteDuration]
-    ): AckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
+//    def sendNWithDelay[F[_]](
+//      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+//    ): AckAction[F] = Send[F](ToSend(messages))
+//
+//    def sendWithDelay[F[_]](
+//      message: JmsMessage,
+//      destination: DestinationName,
+//      duration: Option[FiniteDuration]
+//    ): AckAction[F] =
+//      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
     def send[F[_]](
       message: JmsMessage,

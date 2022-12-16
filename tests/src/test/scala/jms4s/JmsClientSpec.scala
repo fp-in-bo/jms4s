@@ -28,13 +28,10 @@ import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
-import jms4s.config.QueueName
-import jms4s.jms.{ JmsMessage, MessageFactory }
+import jms4s.jms.JmsMessage
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
-
-import scala.concurrent.duration.DurationInt
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
@@ -416,31 +413,31 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
   }
 
-  s"send a message with delay in a Queue with producer and consume it" in {
-    val res = for {
-      jmsClient <- jmsClientRes
-      context   = jmsClient.context
-      consumer <- context
-                   .createContext(SessionType.AutoAcknowledge)
-                   .flatMap(_.createJmsConsumer(outputQueueName1, pollingInterval))
-      message  <- Resource.eval(context.createTextMessage(body))
-      producer <- jmsClient.createProducer(poolSize)
-    } yield (producer, consumer, message)
-
-    res.use {
-      case (producer, consumer, message) =>
-        for {
-          producerTimestamp <- Clock[IO].realTime
-          _                 <- producer.sendWithDelay(messageWithDelayFactory((message, (outputQueueName1, Some(delay)))))
-          _                 <- logger.info(s"Pushed message with body: $body.")
-          _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
-          receivedMessage   <- receiveMessage(consumer).timeout(timeout)
-          deliveryTime      <- Clock[IO].realTime
-          actualBody        <- receivedMessage.asTextF[IO]
-          actualDelay       = (deliveryTime - producerTimestamp)
-        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
-    }
-  }
+//  s"send a message with delay in a Queue with producer and consume it" in {
+//    val res = for {
+//      jmsClient <- jmsClientRes
+//      context   = jmsClient.context
+//      consumer <- context
+//                   .createContext(SessionType.AutoAcknowledge)
+//                   .flatMap(_.createJmsConsumer(outputQueueName1, pollingInterval))
+//      message  <- Resource.eval(context.createTextMessage(body))
+//      producer <- jmsClient.createProducer(poolSize)
+//    } yield (producer, consumer, message)
+//
+//    res.use {
+//      case (producer, consumer, message) =>
+//        for {
+//          producerTimestamp <- Clock[IO].realTime
+//          _                 <- producer.sendWithDelay(messageWithDelayFactory((message, (outputQueueName1, Some(delay)))))
+//          _                 <- logger.info(s"Pushed message with body: $body.")
+//          _                 <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
+//          receivedMessage   <- receiveMessage(consumer).timeout(timeout)
+//          deliveryTime      <- Clock[IO].realTime
+//          actualBody        <- receivedMessage.asTextF[IO]
+//          actualDelay       = (deliveryTime - producerTimestamp)
+//        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+//    }
+//  }
 
   s"send more than poolSize ($poolSize) failing messages do not deadlock" in {
     val res = for {
@@ -512,52 +509,52 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   }
 
-  s"publish a message, consume it, clone it, and then republish delayed to the same queue (retry) " in {
-    def sendToDownstream(mf: MessageFactory[IO], message: JmsTextMessage, q: QueueName): IO[TransactionAction[IO]] =
-      for {
-        text   <- message.asTextF[IO]
-        newMsg <- mf.makeTextMessage(text.toUpperCase)
-      } yield TransactionAction.send[IO](newMsg, q)
-
-    def cloneAndRetry(mf: MessageFactory[IO], message: JmsTextMessage, q: QueueName): IO[TransactionAction[IO]] =
-      for {
-        newMsg <- mf.cloneMessageF(message)
-        _      <- newMsg.setBooleanProperty("visited", true).liftTo[IO]
-      } yield TransactionAction.sendWithDelay[IO](newMsg, q, Some(100.millis))
-
-    val res = for {
-      jmsClient <- jmsClientRes
-      producer  <- jmsClient.createProducer(1)
-      consumer  <- jmsClient.createTransactedConsumer(inputQueueName, poolSize, pollingInterval)
-      consumer1 <- jmsClient.createAutoAcknowledgerConsumer(outputQueueName1, poolSize, pollingInterval)
-    } yield (consumer, producer, consumer1)
-
-    res.use {
-      case (consumer, producer, downstreamConsumer) =>
-        for {
-          _ <- producer.send { mf =>
-                mf.makeTextMessage("msg")
-                  .flatTap(_.setStringProperty("custom_prop1", "custom_value").liftTo[IO])
-                  .map((_, inputQueueName))
-              }
-          _ <- logger.info(s"Pushed ${bodies.size} messages.")
-          consumerToProducerFiber <- consumer.handle { (message, mf) =>
-                                      for {
-                                        textMessage <- message.asJmsTextMessageF[IO]
-                                        action <- textMessage.getBooleanProperty("visited") match {
-                                                   case Some(true) =>
-                                                     sendToDownstream(mf, textMessage, outputQueueName1)
-                                                   case _ =>
-                                                     cloneAndRetry(mf, textMessage, inputQueueName)
-                                                 }
-                                      } yield action
-                                    }.start
-          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
-          receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
-                               .timeout(timeout)
-                               .guarantee(consumerToProducerFiber.cancel)
-        } yield receivedMessages.head
-    }.asserting(received => assert(received.getText.contains_("MSG")))
-
-  }
+//  s"publish a message, consume it, clone it, and then republish delayed to the same queue (retry) " in {
+//    def sendToDownstream(mf: MessageFactory[IO], message: JmsTextMessage, q: QueueName): IO[TransactionAction[IO]] =
+//      for {
+//        text   <- message.asTextF[IO]
+//        newMsg <- mf.makeTextMessage(text.toUpperCase)
+//      } yield TransactionAction.send[IO](newMsg, q)
+//
+//    def cloneAndRetry(mf: MessageFactory[IO], message: JmsTextMessage, q: QueueName): IO[TransactionAction[IO]] =
+//      for {
+//        newMsg <- mf.cloneMessageF(message)
+//        _      <- newMsg.setBooleanProperty("visited", true).liftTo[IO]
+//      } yield TransactionAction.sendWithDelay[IO](newMsg, q, Some(100.millis))
+//
+//    val res = for {
+//      jmsClient <- jmsClientRes
+//      producer  <- jmsClient.createProducer(1)
+//      consumer  <- jmsClient.createTransactedConsumer(inputQueueName, poolSize, pollingInterval)
+//      consumer1 <- jmsClient.createAutoAcknowledgerConsumer(outputQueueName1, poolSize, pollingInterval)
+//    } yield (consumer, producer, consumer1)
+//
+//    res.use {
+//      case (consumer, producer, downstreamConsumer) =>
+//        for {
+//          _ <- producer.send { mf =>
+//                mf.makeTextMessage("msg")
+//                  .flatTap(_.setStringProperty("custom_prop1", "custom_value").liftTo[IO])
+//                  .map((_, inputQueueName))
+//              }
+//          _ <- logger.info(s"Pushed ${bodies.size} messages.")
+//          consumerToProducerFiber <- consumer.handle { (message, mf) =>
+//                                      for {
+//                                        textMessage <- message.asJmsTextMessageF[IO]
+//                                        action <- textMessage.getBooleanProperty("visited") match {
+//                                                   case Some(true) =>
+//                                                     sendToDownstream(mf, textMessage, outputQueueName1)
+//                                                   case _ =>
+//                                                     cloneAndRetry(mf, textMessage, inputQueueName)
+//                                                 }
+//                                      } yield action
+//                                    }.start
+//          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+//          receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
+//                               .timeout(timeout)
+//                               .guarantee(consumerToProducerFiber.cancel)
+//        } yield receivedMessages.head
+//    }.asserting(received => assert(received.getText.contains_("MSG")))
+//
+//  }
 }

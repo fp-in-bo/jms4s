@@ -48,7 +48,7 @@ object JmsAutoAcknowledgerConsumer {
                   ifSend = (send: Send[F]) =>
                     send.messages.messagesAndDestinations.traverse_ {
                       case (message, (name, delay)) =>
-                        delay.fold(context.send(name, message))(delay => context.send(name, message, delay))
+                        delay.fold(context.send(name, message))(_ => context.send(name, message))
                     }
                 )
           } yield ()
@@ -88,17 +88,17 @@ object JmsAutoAcknowledgerConsumer {
     ): AutoAckAction[F] =
       Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
-    def sendNWithDelay[F[_]](
-      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): AutoAckAction[F] =
-      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
-
-    def sendWithDelay[F[_]](
-      message: JmsMessage,
-      destination: DestinationName,
-      duration: Option[FiniteDuration]
-    ): AutoAckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
+//    def sendNWithDelay[F[_]](
+//      messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
+//    ): AutoAckAction[F] =
+//      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
+//
+//    def sendWithDelay[F[_]](
+//      message: JmsMessage,
+//      destination: DestinationName,
+//      duration: Option[FiniteDuration]
+//    ): AutoAckAction[F] =
+//      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
     def send[F[_]](
       message: JmsMessage,

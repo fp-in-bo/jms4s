@@ -26,8 +26,11 @@ import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
 import jms4s.JmsClient
 import jms4s.jms.JmsContext
+import jms4s.jms.utils.SharedConnection
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory
 import org.typelevel.log4cats.Logger
+
+import javax.jms.Session
 
 object activeMQ {
 
@@ -50,17 +53,25 @@ object activeMQ {
                       val factory = new ActiveMQConnectionFactory(hosts(config.endpoints))
                       factory.setClientID(config.clientId.value)
 
-                      config.username.fold(factory.createContext())(username =>
-                        factory.createContext(username.value, config.password.map(_.value).getOrElse(""))
+                      val connection = config.username.fold(factory.createConnection())(username =>
+                        factory.createConnection(username.value, config.password.map(_.value).getOrElse(""))
                       )
+
+                      // NOTE: start the connection before sharing it, it will be stopped in SharedConnection.close()
+                      connection.start()
+
+                      val session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE)
+
+                      Tuple2(new SharedConnection(connection), session)
                     }
-                )(c =>
-                  Logger[F].info(s"Closing context $c to MQ at ${hosts(config.endpoints)}...") *>
-                    Sync[F].blocking(c.close()) *>
-                    Logger[F].info(s"Closed context $c to MQ at ${hosts(config.endpoints)}.")
-                )
-      _ <- Resource.eval(Logger[F].info(s"Opened context $context."))
-    } yield new JmsClient[F](new JmsContext[F](context))
+                ) {
+                  case (sharedConnection, session) =>
+                    Logger[F].info(s"Closing context $session to MQ at ${hosts(config.endpoints)}...") *>
+                      Sync[F].blocking { session.close(); sharedConnection.close() } *>
+                      Logger[F].info(s"Closed context $session to MQ at ${hosts(config.endpoints)}.")
+                }
+      _ <- Resource.eval(Logger[F].info(s"Opened context ${context._2}."))
+    } yield new JmsClient[F](new JmsContext[F](context._1, context._2))
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
     endpoints.map(e => s"tcp://${e.host}:${e.port}").toList.mkString(",")

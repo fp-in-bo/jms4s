@@ -28,7 +28,10 @@ import com.ibm.mq.jms.MQConnectionFactory
 import com.ibm.msg.client.wmq.common.CommonConstants
 import jms4s.JmsClient
 import jms4s.jms.JmsContext
+import jms4s.jms.utils.SharedConnection
 import org.typelevel.log4cats.Logger
+
+import javax.jms.Session
 
 object ibmMQ {
 
@@ -61,20 +64,28 @@ object ibmMQ {
                       connectionFactory.setChannel(config.channel.value)
                       connectionFactory.setClientID(config.clientId.value)
 
-                      config.username.map { username =>
-                        connectionFactory.createContext(
+                      val connection = config.username.map { username =>
+                        connectionFactory.createConnection(
                           username.value,
                           config.password.map(_.value).orNull
                         )
-                      }.getOrElse(connectionFactory.createContext())
+                      }.getOrElse(connectionFactory.createConnection())
+
+                      // NOTE: start the connection before sharing it, it will be stopped in SharedConnection.close()
+                      connection.start()
+
+                      val session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE)
+
+                      Tuple2(new SharedConnection(connection), session)
                     }
-                )(c =>
-                  Logger[F].info(s"Closing Context $c at ${hosts(config.endpoints)}...") *>
-                    Sync[F].blocking(c.close()) *>
-                    Logger[F].info(s"Closed Context $c.")
-                )
-      _ <- Resource.eval(Logger[F].info(s"Opened Context $context at ${hosts(config.endpoints)}."))
-    } yield new JmsClient[F](new JmsContext[F](context))
+                ) {
+                  case (sharedConnection, session) =>
+                    Logger[F].info(s"Closing Context $session at ${hosts(config.endpoints)}...") *>
+                      Sync[F].blocking { session.close(); sharedConnection.close() } *>
+                      Logger[F].info(s"Closed Context $session.")
+                }
+      _ <- Resource.eval(Logger[F].info(s"Opened Context ${context._2} at ${hosts(config.endpoints)}."))
+    } yield new JmsClient[F](new JmsContext[F](context._1, context._2))
 
   private def hosts(endpoints: NonEmptyList[Endpoint]): String =
     endpoints.map(e => s"${e.host}(${e.port})").toList.mkString(",")
