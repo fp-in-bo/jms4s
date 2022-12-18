@@ -81,6 +81,12 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
   def createTextMessage(value: String): F[JmsTextMessage] =
     Sync[F].blocking(context.createTextMessage(value)).map(new JmsTextMessage(_))
 
+  def createBytesMessage(bytes: Array[Byte]): F[JmsMessage] =
+    Sync[F].blocking(context.createBytesMessage()).map { m =>
+      m.writeBytes(bytes)
+      new JmsMessage(m)
+    }
+
   def commit: F[Unit] = Sync[F].blocking(context.commit())
 
   def rollback: F[Unit] = Sync[F].blocking(context.rollback())

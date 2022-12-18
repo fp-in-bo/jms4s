@@ -211,6 +211,34 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
   }
 
+  s"publish $nMessages messages and then consume them concurrently with auto-acknowledge stream" in {
+
+    val res = for {
+      jmsClient   <- jmsClientRes
+      context     = jmsClient.context
+      consumer    <- jmsClient.createAutoAcknowledgerConsumer(inputQueueName, poolSize, pollingInterval)
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      messages    <- Resource.eval(bodies.traverse(i => sendContext.createTextMessage(i)))
+    } yield (consumer, sendContext, bodies.toSet, messages)
+
+    res.use {
+      case (consumer, sendContext, bodies, messages) =>
+        for {
+          _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
+          _ <- logger.info(s"Pushed ${messages.size} messages.")
+          received <- consumer.stream { (message, _) =>
+                       message
+                         .asTextF[IO]
+                         .map(body => (AutoAckAction.noOp[IO], "MSG_" + body))
+                     }.take(messages.size.toLong).compile.toList
+
+        } yield assert(
+          received.size == bodies.size &&
+            received.forall(_.startsWith("MSG_"))
+        )
+    }
+  }
+
   s"publish $nMessages messages, consume them concurrently and then republishing to other queues, with auto-acknowledge" in {
 
     val res = for {
