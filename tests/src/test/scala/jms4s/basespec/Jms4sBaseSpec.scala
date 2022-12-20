@@ -23,6 +23,7 @@ package jms4s.basespec
 
 import cats.data.NonEmptyList
 import cats.effect._
+import cats.effect.std.UUIDGen
 import cats.implicits._
 import fs2.concurrent.Channel
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
@@ -40,21 +41,23 @@ trait Jms4sBaseSpec {
 
   def jmsClientRes(implicit cs: Async[IO]): Resource[IO, JmsClient[IO]]
 
-  val body: String                        = "body"
-  val nMessages: Int                      = 50
-  val bodies: List[String]                = (0 until nMessages).map(i => s"$i").toList
-  val poolSize: Int                       = 2
-  val timeout: FiniteDuration             = 4.seconds // CI is slow...
-  val pollingInterval: FiniteDuration     = 100.millis
-  val delay: FiniteDuration               = 200.millis
-  val delayWithTolerance: Duration        = delay * 0.8 // it looks like activemq is not fully respecting delivery delay
-  val topicName1: TopicName               = TopicName("dev1/")
-  val topicName2: TopicName               = TopicName("dev2/")
-  val temporaryTopic: TemporaryTopic      = TemporaryTopic()
-  val inputQueueName: QueueName           = QueueName("DEV.QUEUE.1")
-  val temporaryInputQueue: TemporaryQueue = TemporaryQueue()
-  val outputQueueName1: QueueName         = QueueName("DEV.QUEUE.2")
-  val outputQueueName2: QueueName         = QueueName("DEV.QUEUE.3")
+  val body: String                    = "body"
+  val nMessages: Int                  = 50
+  val bodies: List[String]            = (0 until nMessages).map(i => s"$i").toList
+  val poolSize: Int                   = 2
+  val timeout: FiniteDuration         = 4.seconds // CI is slow...
+  val pollingInterval: FiniteDuration = 100.millis
+  val delay: FiniteDuration           = 200.millis
+  val delayWithTolerance: Duration    = delay * 0.8 // it looks like activemq is not fully respecting delivery delay
+  val topicName1: TopicName           = TopicName("dev1/")
+  val topicName2: TopicName           = TopicName("dev2/")
+  val inputQueueName: QueueName       = QueueName("DEV.QUEUE.1")
+  val outputQueueName1: QueueName     = QueueName("DEV.QUEUE.2")
+  val outputQueueName2: QueueName     = QueueName("DEV.QUEUE.3")
+
+  def newTemporaryTopic: IO[TemporaryTopic] = UUIDGen[IO].randomUUID.map(TemporaryTopic(_))
+
+  def newTemporaryInputQueue: IO[TemporaryQueue] = UUIDGen[IO].randomUUID.map(TemporaryQueue(_))
 
   def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
     consumer.receiveJmsMessage
