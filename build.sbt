@@ -152,7 +152,10 @@ lazy val tests = project
   .in(file("tests"))
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
-  .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
+  .settings(libraryDependencies ++= Seq(
+    "org.apache.logging.log4j" % "log4j-slf4j2-impl" % log4jSlf4jImplV % Runtime,
+    "org.apache.logging.log4j" % "log4j-core" % log4jSlf4jImplV % Runtime
+  ))
   .settings(Test / parallelExecution := false)
   .dependsOn(ibmMQ, activeMQArtemis)
 
