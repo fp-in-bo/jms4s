@@ -76,34 +76,40 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
   }
 
   "publish to a temporary queue and then receive" in {
-    contexts(temporaryInputQueue).use {
-      case (receiveConsumer, sendContext, msg) =>
-        for {
-          _    <- sendContext.send(temporaryInputQueue, msg)
-          text <- receiveBodyAsTextOrFail(receiveConsumer)
-        } yield assert(text == body)
+    newTemporaryInputQueue.flatMap { temporaryInputQueue =>
+      contexts(temporaryInputQueue).use {
+        case (receiveConsumer, sendContext, msg) =>
+          for {
+            _    <- sendContext.send(temporaryInputQueue, msg)
+            text <- receiveBodyAsTextOrFail(receiveConsumer)
+          } yield assert(text == body)
+      }
     }
   }
   "publish to a temporary queue and then receive with a delay" in {
-    contexts(temporaryInputQueue).use {
-      case (consumer, sendContext, msg) =>
-        for {
-          producerTimestamp <- Clock[IO].realTime
-          _                 <- sendContext.send(temporaryInputQueue, msg, delay)
-          msg               <- consumer.receiveJmsMessage
-          deliveryTime      <- Clock[IO].realTime
-          actualBody        <- msg.asTextF[IO]
-          actualDelay       = (deliveryTime - producerTimestamp)
-        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+    newTemporaryInputQueue.flatMap { temporaryInputQueue =>
+      contexts(temporaryInputQueue).use {
+        case (consumer, sendContext, msg) =>
+          for {
+            producerTimestamp <- Clock[IO].realTime
+            _                 <- sendContext.send(temporaryInputQueue, msg, delay)
+            msg               <- consumer.receiveJmsMessage
+            deliveryTime      <- Clock[IO].realTime
+            actualBody        <- msg.asTextF[IO]
+            actualDelay       = (deliveryTime - producerTimestamp)
+          } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+      }
     }
   }
   "publish to a tempoary topic and then receive" in {
-    contexts(temporaryTopic).use {
-      case (consumer, sendContext, msg) =>
-        for {
-          _   <- sendContext.send(temporaryTopic, msg)
-          rec <- receiveBodyAsTextOrFail(consumer)
-        } yield assert(rec == body)
+    newTemporaryTopic.flatMap { temporaryTopic =>
+      contexts(temporaryTopic).use {
+        case (consumer, sendContext, msg) =>
+          for {
+            _   <- sendContext.send(temporaryTopic, msg)
+            rec <- receiveBodyAsTextOrFail(consumer)
+          } yield assert(rec == body)
+      }
     }
   }
 

@@ -29,11 +29,11 @@ sealed trait Destination
 
 sealed trait TemporaryDestination extends Destination
 
-case class TemporaryQueue(value: UUID = java.util.UUID.randomUUID()) extends TemporaryDestination {
+case class TemporaryQueue(value: UUID) extends TemporaryDestination {
   override def toString: String = s"temporary-queue#$value"
 }
 
-case class TemporaryTopic(value: UUID = java.util.UUID.randomUUID()) extends TemporaryDestination {
+case class TemporaryTopic(value: UUID) extends TemporaryDestination {
   override def toString: String = s"temporary-topic#$value"
 }
 
