@@ -32,7 +32,7 @@ import org.typelevel.log4cats.Logger
 import javax.jms.JMSContext
 import scala.concurrent.duration.FiniteDuration
 
-class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
+class JmsContext[F[_]: Async: Logger](private val context: JMSContext) extends JmsDestinationFactory[F] {
 
   def createContext(sessionType: SessionType): Resource[F, JmsContext[F]] =
     Resource
@@ -49,31 +49,52 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
       .map(context => new JmsContext(context))
 
   def send(destination: Destination, message: JmsMessage): F[Unit] =
+    createDestination(destination)
+      .flatMap(send(_, message))
+
+  def send(jmsDestination: JmsDestination, message: JmsMessage): F[Unit] =
     for {
-      jmsDestination <- createDestination(destination)
-      p              <- Sync[F].blocking(context.createProducer())
-      _              <- Sync[F].blocking(p.send(jmsDestination.wrapped, message.wrapped))
+      p <- Sync[F].blocking(context.createProducer())
+      _ <- Logger[F].trace(s"Sending message id=${message.getJMSMessageId} to $jmsDestination")
+      _ <- Sync[F].blocking(p.send(jmsDestination.wrapped, message.wrapped))
+      _ <- Logger[F].trace(s"Sent message id=${message.getJMSMessageId} to $jmsDestination")
     } yield ()
 
   def send(destination: Destination, message: JmsMessage, delay: FiniteDuration): F[Unit] =
+    createDestination(destination)
+      .flatMap(send(_, message, delay))
+
+  def send(jmsDestination: JmsDestination, message: JmsMessage, delay: FiniteDuration): F[Unit] =
     for {
-      jmsDestination <- createDestination(destination)
-      p              <- Sync[F].blocking(context.createProducer())
-      _              <- Sync[F].delay(p.setDeliveryDelay(delay.toMillis))
-      _              <- Sync[F].blocking(p.send(jmsDestination.wrapped, message.wrapped))
+      p <- Sync[F].blocking(context.createProducer())
+      _ <- Sync[F].delay(p.setDeliveryDelay(delay.toMillis))
+      _ <- Logger[F].trace(
+            s"Sending message id=${message.getJMSMessageId} with delay=${delay.toMillis} to $jmsDestination"
+          )
+      _ <- Sync[F].blocking(p.send(jmsDestination.wrapped, message.wrapped))
+      _ <- Logger[F].trace(
+            s"Sent message id=${message.getJMSMessageId} with delay=${delay.toMillis} to $jmsDestination"
+          )
     } yield ()
 
   def createJmsConsumer(
     destination: Destination,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsMessageConsumer[F]] =
+    Resource
+      .eval(createDestination(destination))
+      .flatMap(createJmsConsumer(_, pollingInterval))
+
+  def createJmsConsumer(
+    jmsDestination: JmsDestination,
+    pollingInterval: FiniteDuration
+  ): Resource[F, JmsMessageConsumer[F]] =
     for {
-      jmsDestination <- Resource.eval(createDestination(destination))
       consumer <- Resource.make(
-                   Logger[F].info(s"Creating consumer for destination $destination(${jmsDestination.name})") *>
+                   Logger[F].info(s"Creating consumer for destination $jmsDestination") *>
                      Sync[F].blocking(context.createConsumer(jmsDestination.wrapped))
                  )(consumer =>
-                   Logger[F].info(s"Closing consumer for destination $destination(${jmsDestination.name})") *>
+                   Logger[F].info(s"Closing consumer for destination $jmsDestination") *>
                      Sync[F].blocking(consumer.close())
                  )
     } yield new JmsMessageConsumer[F](consumer, pollingInterval)
@@ -89,7 +110,9 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
     Sync[F].blocking(context.createQueue(queue.value)).map(new JmsQueue(_))
 
   private def createTemporaryQueue(): F[JmsQueue] =
-    Sync[F].blocking(context.createTemporaryQueue()).map(new JmsQueue(_))
+    Sync[F]
+      .blocking(context.createTemporaryQueue())
+      .map(new JmsQueue(_))
 
   private def createTopic(topicName: TopicName): F[JmsTopic] =
     Sync[F].blocking(context.createTopic(topicName.value)).map(new JmsTopic(_))
@@ -97,7 +120,7 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
   private def createTemporaryTopic(): F[JmsTopic] =
     Sync[F].blocking(context.createTemporaryTopic()).map(new JmsTopic(_))
 
-  def createDestination(destination: Destination): F[JmsDestination] = destination match {
+  override def createDestination(destination: Destination): F[JmsDestination] = destination match {
     case TemporaryQueue(_) => createTemporaryQueue().widen[JmsDestination]
     case TemporaryTopic(_) => createTemporaryTopic().widen[JmsDestination]
     case qn: QueueName     => createQueue(qn).widen[JmsDestination]

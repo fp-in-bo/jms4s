@@ -22,44 +22,73 @@
 package jms4s
 
 import cats.effect.{ Async, Resource }
-import jms4s.config.DestinationName
+import jms4s.config.{ Destination, DestinationName }
 import jms4s.jms._
 import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsContext[F]) {
+class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsContext[F])
+    extends JmsDestinationFactory[F] {
 
   def createTransactedConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.Transacted)
-      .map(JmsTransactedConsumer.make(_))
+    Resource
+      .eval(context.createDestination(inputDestinationName))
+      .flatMap(createTransactedConsumer(_, concurrencyLevel, pollingInterval))
 
   def createAutoAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
-      .map(JmsAutoAcknowledgerConsumer.make(_))
+    Resource
+      .eval(context.createDestination(inputDestinationName))
+      .flatMap(createAutoAcknowledgerConsumer(_, concurrencyLevel, pollingInterval))
 
   def createAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
-      .map(JmsAcknowledgerConsumer.make(_))
+    Resource
+      .eval(context.createDestination(inputDestinationName))
+      .flatMap(createAcknowledgerConsumer(_, concurrencyLevel, pollingInterval))
 
   def createProducer(
     concurrencyLevel: Int
   ): Resource[F, JmsProducer[F]] =
     JmsProducer.make[F](context, concurrencyLevel)
 
+  def createTransactedConsumer(
+    inputJmsDestination: JmsDestination,
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
+  ): Resource[F, JmsTransactedConsumer[F]] =
+    PooledConsumer
+      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.Transacted)
+      .map(JmsTransactedConsumer.make(_))
+
+  def createAutoAcknowledgerConsumer(
+    inputJmsDestination: JmsDestination,
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
+  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
+    PooledConsumer
+      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
+      .map(JmsAutoAcknowledgerConsumer.make(_))
+
+  def createAcknowledgerConsumer(
+    inputJmsDestination: JmsDestination,
+    concurrencyLevel: Int,
+    pollingInterval: FiniteDuration
+  ): Resource[F, JmsAcknowledgerConsumer[F]] =
+    PooledConsumer
+      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
+      .map(JmsAcknowledgerConsumer.make(_))
+
+  override def createDestination(destination: Destination): F[JmsDestination] = context.createDestination(destination)
 }
