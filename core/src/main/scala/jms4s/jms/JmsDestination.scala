@@ -25,9 +25,18 @@ import javax.jms.{ Destination, Queue, Topic }
 
 sealed abstract class JmsDestination {
   private[jms4s] val wrapped: Destination
+  private[jms4s] def name: String
+
+  override def toString: String = s"${getClass.getSimpleName}($name)"
 }
 
 object JmsDestination {
-  class JmsQueue private[jms4s] (private[jms4s] val wrapped: Queue) extends JmsDestination
-  class JmsTopic private[jms4s] (private[jms4s] val wrapped: Topic) extends JmsDestination
+
+  class JmsQueue private[jms4s] (private[jms4s] val wrapped: Queue) extends JmsDestination {
+    override private[jms4s] def name: String = wrapped.getQueueName
+  }
+
+  class JmsTopic private[jms4s] (private[jms4s] val wrapped: Topic) extends JmsDestination {
+    override private[jms4s] def name: String = wrapped.getTopicName
+  }
 }

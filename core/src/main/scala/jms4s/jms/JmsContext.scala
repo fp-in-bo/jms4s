@@ -70,10 +70,10 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
     for {
       jmsDestination <- Resource.eval(createDestination(destination))
       consumer <- Resource.make(
-                   Logger[F].info(s"Creating consumer for destination $destination") *>
+                   Logger[F].info(s"Creating consumer for destination $destination(${jmsDestination.name})") *>
                      Sync[F].blocking(context.createConsumer(jmsDestination.wrapped))
                  )(consumer =>
-                   Logger[F].info(s"Closing consumer for destination $destination") *>
+                   Logger[F].info(s"Closing consumer for destination $destination(${jmsDestination.name})") *>
                      Sync[F].blocking(consumer.close())
                  )
     } yield new JmsMessageConsumer[F](consumer, pollingInterval)
