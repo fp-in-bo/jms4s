@@ -25,6 +25,7 @@ import cats.data.NonEmptyList
 import cats.effect.{ Async, Sync }
 import cats.syntax.all._
 import jms4s.JmsAcknowledgerConsumer.AckAction
+import jms4s.JmsAcknowledgerConsumer.AckAction.{ Send, ToSendByDestinationName, ToSendByJmsDestination }
 import jms4s.config.DestinationName
 import jms4s.jms._
 
@@ -46,17 +47,29 @@ object JmsAcknowledgerConsumer {
               _ <- res.fold(
                     ifAck = Sync[F].blocking(message.wrapped.acknowledge()),
                     ifNoAck = Sync[F].unit,
-                    ifSend = send =>
-                      send.messages.messagesAndDestinations.traverse_ {
-                        case (message, (name, delay)) =>
-                          delay.fold(ifEmpty = context.send(name, message))(
-                            f = d => context.send(name, message, d)
-                          )
-                      } *> Sync[F].blocking(message.wrapped.acknowledge())
+                    ifSend = sendTo[F](_, context) *> Sync[F].blocking(message.wrapped.acknowledge())
                   )
             } yield ()
         }
       }.compile.drain
+
+  private def sendTo[F[_]: Async](send: Send[F], context: JmsContext[F]): F[Unit] =
+    send.messages match {
+      case ToSendByJmsDestination(messagesAndDestinations) =>
+        messagesAndDestinations.traverse_ {
+          case (message, (jmsDestination, delay)) =>
+            delay.fold(ifEmpty = context.send(jmsDestination, message))(
+              f = d => context.send(jmsDestination, message, d)
+            )
+        }
+      case ToSendByDestinationName(messagesAndDestinations) =>
+        messagesAndDestinations.traverse_ {
+          case (message, (name, delay)) =>
+            delay.fold(ifEmpty = context.send(name, message))(
+              f = d => context.send(name, message, d)
+            )
+        }
+    }
 
   sealed abstract class AckAction[F[_]] extends Product with Serializable {
     def fold(ifAck: => F[Unit], ifNoAck: => F[Unit], ifSend: AckAction.Send[F] => F[Unit]): F[Unit]
@@ -93,9 +106,15 @@ object JmsAcknowledgerConsumer {
         ifSend(this)
     }
 
-    private[jms4s] case class ToSend[F[_]](
+    sealed private[jms4s] trait ToSend[F[_]]
+
+    private[jms4s] case class ToSendByJmsDestination[F[_]](
+      messagesAndDestinations: NonEmptyList[(JmsMessage, (JmsDestination, Option[FiniteDuration]))]
+    ) extends ToSend[F]
+
+    private[jms4s] case class ToSendByDestinationName[F[_]](
       messagesAndDestinations: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    )
+    ) extends ToSend[F]
 
     def ack[F[_]]: AckAction[F] = Ack()
 
@@ -104,23 +123,49 @@ object JmsAcknowledgerConsumer {
     def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): AckAction[F] =
-      Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
+      Send[F](ToSendByDestinationName[F](messages.map {
+        case (message, destinationName: DestinationName) => (message, (destinationName, None))
+      }))
 
     def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    ): AckAction[F] = Send[F](ToSend(messages))
+    ): AckAction[F] = Send[F](ToSendByDestinationName(messages))
 
     def sendWithDelay[F[_]](
       message: JmsMessage,
-      destination: DestinationName,
+      destinationName: DestinationName,
       duration: Option[FiniteDuration]
     ): AckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
+      Send[F](ToSendByDestinationName[F](NonEmptyList.one((message, (destinationName, duration)))))
 
     def send[F[_]](
       message: JmsMessage,
-      destination: DestinationName
+      destinationName: DestinationName
     ): AckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
+      Send[F](ToSendByDestinationName[F](NonEmptyList.one((message, (destinationName, None)))))
+
+    def sendNTo[F[_]](
+      messages: NonEmptyList[(JmsMessage, JmsDestination)]
+    ): AckAction[F] =
+      Send[F](ToSendByJmsDestination[F](messages.map {
+        case (message, jmsDestination: JmsDestination) => (message, (jmsDestination, None))
+      }))
+
+    def sendNWithDelayTo[F[_]](
+      messages: NonEmptyList[(JmsMessage, (JmsDestination, Option[FiniteDuration]))]
+    ): AckAction[F] = Send[F](ToSendByJmsDestination(messages))
+
+    def sendWithDelayTo[F[_]](
+      message: JmsMessage,
+      jmsDestination: JmsDestination,
+      duration: Option[FiniteDuration]
+    ): AckAction[F] =
+      Send[F](ToSendByJmsDestination[F](NonEmptyList.one((message, (jmsDestination, duration)))))
+
+    def sendTo[F[_]](
+      message: JmsMessage,
+      jmsDestination: JmsDestination
+    ): AckAction[F] =
+      Send[F](ToSendByJmsDestination[F](NonEmptyList.one((message, (jmsDestination, None)))))
   }
 }

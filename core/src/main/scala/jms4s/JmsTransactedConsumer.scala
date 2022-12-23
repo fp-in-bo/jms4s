@@ -25,6 +25,7 @@ import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.syntax.all._
 import jms4s.JmsTransactedConsumer.TransactionAction
+import jms4s.JmsTransactedConsumer.TransactionAction.{ Send, ToSendByDestinationName, ToSendByJmsDestination }
 import jms4s.config.DestinationName
 import jms4s.jms._
 
@@ -45,16 +46,28 @@ object JmsTransactedConsumer {
             _ <- txnAction.fold(
                   ifCommit = context.commit,
                   ifRollback = context.rollback,
-                  ifSend = send =>
-                    send.messages.messagesAndDestinations.traverse_ {
-                      case (message, (name, delay)) =>
-                        delay.fold(
-                          context.send(name, message)
-                        )(d => context.send(name, message, d))
-                    } *> context.commit
+                  ifSend = sendTo[F](_, context) *> context.commit
                 )
           } yield ()
       }.compile.drain
+
+  private def sendTo[F[_]: Async](send: Send[F], context: JmsContext[F]): F[Unit] =
+    send.messages match {
+      case ToSendByJmsDestination(messagesAndDestinations) =>
+        messagesAndDestinations.traverse_ {
+          case (message, (jmsDestination, delay)) =>
+            delay.fold(
+              context.send(jmsDestination, message)
+            )(d => context.send(jmsDestination, message, d))
+        }
+      case ToSendByDestinationName(messagesAndDestinations) =>
+        messagesAndDestinations.traverse_ {
+          case (message, (name, delay)) =>
+            delay.fold(
+              context.send(name, message)
+            )(d => context.send(name, message, d))
+        }
+    }
 
   sealed abstract class TransactionAction[F[_]] extends Product with Serializable {
     def fold(ifCommit: => F[Unit], ifRollback: => F[Unit], ifSend: TransactionAction.Send[F] => F[Unit]): F[Unit]
@@ -90,9 +103,15 @@ object JmsTransactedConsumer {
         ifSend(this)
     }
 
-    private[jms4s] case class ToSend[F[_]](
+    sealed private[jms4s] trait ToSend[F[_]]
+
+    private[jms4s] case class ToSendByJmsDestination[F[_]](
+      messagesAndDestinations: NonEmptyList[(JmsMessage, (JmsDestination, Option[FiniteDuration]))]
+    ) extends ToSend[F]
+
+    private[jms4s] case class ToSendByDestinationName[F[_]](
       messagesAndDestinations: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-    )
+    ) extends ToSend[F]
 
     def commit[F[_]]: TransactionAction[F] = Commit[F]()
 
@@ -101,24 +120,51 @@ object JmsTransactedConsumer {
     def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): TransactionAction[F] =
-      Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
+      Send[F](ToSendByDestinationName[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
     ): TransactionAction[F] =
-      Send[F](ToSend[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
+      Send[F](ToSendByDestinationName[F](messages.map { case (message, (name, delay)) => (message, (name, delay)) }))
 
     def sendWithDelay[F[_]](
       message: JmsMessage,
       destination: DestinationName,
       duration: Option[FiniteDuration]
     ): TransactionAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
+      Send[F](ToSendByDestinationName[F](NonEmptyList.one((message, (destination, duration)))))
 
     def send[F[_]](
       message: JmsMessage,
       destination: DestinationName
     ): TransactionAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
+      Send[F](ToSendByDestinationName[F](NonEmptyList.one((message, (destination, None)))))
+
+    def sendNTo[F[_]](
+      messages: NonEmptyList[(JmsMessage, JmsDestination)]
+    ): TransactionAction[F] =
+      Send[F](ToSendByJmsDestination[F](messages.map {
+        case (message, jmsDestination) => (message, (jmsDestination, None))
+      }))
+
+    def sendNWithDelayTo[F[_]](
+      messages: NonEmptyList[(JmsMessage, (JmsDestination, Option[FiniteDuration]))]
+    ): TransactionAction[F] =
+      Send[F](ToSendByJmsDestination[F](messages.map {
+        case (message, (jmsDestination, delay)) => (message, (jmsDestination, delay))
+      }))
+
+    def sendWithDelayTo[F[_]](
+      message: JmsMessage,
+      jmsDestination: JmsDestination,
+      duration: Option[FiniteDuration]
+    ): TransactionAction[F] =
+      Send[F](ToSendByJmsDestination[F](NonEmptyList.one((message, (jmsDestination, duration)))))
+
+    def sendTo[F[_]](
+      message: JmsMessage,
+      jmsDestination: JmsDestination
+    ): TransactionAction[F] =
+      Send[F](ToSendByJmsDestination[F](NonEmptyList.one((message, (jmsDestination, None)))))
   }
 }
