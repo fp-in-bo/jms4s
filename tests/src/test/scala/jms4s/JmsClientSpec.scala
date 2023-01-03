@@ -38,7 +38,7 @@ import scala.concurrent.duration.DurationInt
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
-  s"publish $nMessages messages and then consume them concurrently with local transactions" in {
+  s"publish $nMessages messages to a queue and then consume them concurrently with local transactions" in {
     val res = for {
       jmsClient   <- jmsClientRes
       context     = jmsClient.context
@@ -561,5 +561,37 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield receivedMessages.head
     }.asserting(received => assert(received.getText.contains_("MSG")))
 
+  }
+
+  s"publish $nMessages messages to a temporary queue and then consume them concurrently with local transactions" in {
+    val res = for {
+      temporaryInputQueue  <- Resource.eval(newTemporaryInputQueue)
+      jmsClient            <- jmsClientRes
+      context              = jmsClient.context
+      temporaryDestination <- Resource.eval(jmsClient.createDestination(temporaryInputQueue))
+//      temporaryDestination <- Resource.eval(context.createDestination(temporaryInputQueue))
+      consumer    <- jmsClient.createTransactedConsumer(temporaryDestination, poolSize, pollingInterval)
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      messages    <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
+    } yield (temporaryDestination, consumer, sendContext, bodies.toSet, messages)
+
+    res.use {
+      case (temporaryDestination, consumer, context, bodies, messages) =>
+        for {
+          _        <- messages.traverse_(msg => context.send(temporaryDestination, msg))
+          _        <- logger.info(s"Pushed ${messages.size} messages.")
+          received <- Ref.of[IO, Set[String]](Set())
+          consumerFiber <- consumer.handle { (message, _) =>
+                            for {
+                              body <- message.asTextF[IO]
+                              _    <- received.update(_ + body)
+                            } yield TransactionAction.commit
+                          }.start
+          _ <- logger.info(s"Consumer started. Collecting messages from the queue...")
+          receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)) >> received.get)
+                               .timeout(timeout)
+                               .guarantee(consumerFiber.cancel)
+        } yield assert(receivedMessages == bodies)
+    }
   }
 }
