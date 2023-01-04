@@ -51,8 +51,11 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
   def send(destinationName: DestinationName, message: JmsMessage): F[Unit] =
     for {
       destination <- createDestination(destinationName)
+      _           <- Logger[F].debug(s"Creating producer")
       p           <- Sync[F].blocking(context.createProducer())
+      _           <- Logger[F].debug(s"Sending message $message to destination: $destinationName")
       _           <- Sync[F].blocking(p.send(destination.wrapped, message.wrapped))
+      _           <- Logger[F].debug(s"Sent message $message to destination: $destinationName")
     } yield ()
 
   def send(destinationName: DestinationName, message: JmsMessage, delay: FiniteDuration): F[Unit] =
@@ -86,10 +89,12 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
   def rollback: F[Unit] = Sync[F].blocking(context.rollback())
 
   private def createQueue(queue: QueueName): F[JmsQueue] =
-    Sync[F].blocking(context.createQueue(queue.value)).map(new JmsQueue(_))
+    Logger[F].debug(s"Creating Queue $queue") *>
+      Sync[F].blocking(context.createQueue(queue.value)).map(new JmsQueue(_))
 
   private def createTopic(topicName: TopicName): F[JmsTopic] =
-    Sync[F].blocking(context.createTopic(topicName.value)).map(new JmsTopic(_))
+    Logger[F].debug(s"Creating Topic $topicName") *>
+      Sync[F].blocking(context.createTopic(topicName.value)).map(new JmsTopic(_))
 
   def createDestination(destination: DestinationName): F[JmsDestination] = destination match {
     case q: QueueName => createQueue(q).widen[JmsDestination]
