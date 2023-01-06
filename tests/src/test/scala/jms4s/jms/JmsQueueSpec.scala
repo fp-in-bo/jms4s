@@ -21,6 +21,27 @@
 
 package jms4s.jms
 
-import jms4s.basespec.providers.ActiveMQArtemisBaseSpec
-
-class ActiveMQArtemisJmsSpec extends JmsQueueSpec with JmsTopicSpec with ActiveMQArtemisBaseSpec
+trait JmsQueueSpec extends JmsSpec {
+  "publish to a queue and then receive" in {
+    contexts(inputQueueName).use {
+      case (receiveConsumer, sendContext, msg) =>
+        for {
+          _    <- sendContext.send(inputQueueName, msg)
+          text <- receiveBodyAsTextOrFail(receiveConsumer)
+        } yield assert(text == body)
+    }
+  }
+  //  "publish and then receive with a delay" in {
+  //    contexts(inputQueueName).use {
+  //      case (consumer, sendContext, msg) =>
+  //        for {
+  //          producerTimestamp <- Clock[IO].realTime
+  //          _                 <- sendContext.send(inputQueueName, msg, delay)
+  //          msg               <- consumer.receiveJmsMessage
+  //          deliveryTime      <- Clock[IO].realTime
+  //          actualBody        <- msg.asTextF[IO]
+  //          actualDelay       = (deliveryTime - producerTimestamp)
+  //        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+  //    }
+  //  }
+}

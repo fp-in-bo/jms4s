@@ -23,4 +23,4 @@ package jms4s.jms
 
 import jms4s.basespec.providers.ElasticMQBaseSpec
 
-class ElasticMQJmsSpec extends JmsSpec with ElasticMQBaseSpec
+class ElasticMQJmsSpec extends JmsQueueSpec with ElasticMQBaseSpec

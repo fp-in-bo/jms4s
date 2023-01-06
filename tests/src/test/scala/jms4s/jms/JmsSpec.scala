@@ -22,7 +22,7 @@
 package jms4s.jms
 
 import cats.effect.testing.scalatest.AsyncIOSpec
-import cats.effect.{ IO, Resource }
+import cats.effect.Resource
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.DestinationName
 import jms4s.model.SessionType
@@ -32,7 +32,7 @@ import scala.concurrent.duration.DurationInt
 
 trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
-  private def contexts(destination: DestinationName) =
+  private[jms] def contexts(destination: DestinationName) =
     for {
       client  <- jmsClientRes
       context = client.context
@@ -42,46 +42,4 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
       msg         <- Resource.eval(context.createTextMessage(body))
     } yield (receiveConsumer, sendContext, msg)
-
-  "publish to a queue and then receive" in {
-    contexts(inputQueueName).use {
-      case (receiveConsumer, sendContext, msg) =>
-        for {
-          _    <- sendContext.send(inputQueueName, msg)
-          text <- receiveBodyAsTextOrFail(receiveConsumer)
-        } yield assert(text == body)
-    }
-  }
-//  "publish and then receive with a delay" in {
-//    contexts(inputQueueName).use {
-//      case (consumer, sendContext, msg) =>
-//        for {
-//          producerTimestamp <- Clock[IO].realTime
-//          _                 <- sendContext.send(inputQueueName, msg, delay)
-//          msg               <- consumer.receiveJmsMessage
-//          deliveryTime      <- Clock[IO].realTime
-//          actualBody        <- msg.asTextF[IO]
-//          actualDelay       = (deliveryTime - producerTimestamp)
-//        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
-//    }
-//  }
-  "publish to a topic and then receive" in {
-    contexts(topicName1).use {
-      case (consumer, sendContext, msg) =>
-        for {
-          _   <- sendContext.send(topicName1, msg)
-          rec <- receiveBodyAsTextOrFail(consumer)
-        } yield assert(rec == body)
-    }
-  }
-
-  "update and get a JMSMessage property" in {
-    contexts(topicName1).use {
-      case (_, _, msg) =>
-        for {
-          _ <- IO.fromTry(msg.setJMSType("newType"))
-          t = msg.getJMSType
-        } yield assert(t.contains("newType"))
-    }
-  }
 }
