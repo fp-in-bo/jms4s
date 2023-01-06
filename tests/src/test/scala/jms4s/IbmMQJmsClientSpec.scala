@@ -23,4 +23,8 @@ package jms4s
 
 import jms4s.basespec.providers.IbmMQBaseSpec
 
-class IbmMQJmsClientSpec extends JmsQueueClientSpec with JmsTopicClientSpec with IbmMQBaseSpec
+class IbmMQJmsClientSpec
+    extends JmsTransactedQueueClientSpec
+    with JmsQueueClientSpec
+    with JmsTopicClientSpec
+    with IbmMQBaseSpec
