@@ -44,7 +44,7 @@ trait Jms4sBaseSpec {
   val nMessages: Int                  = 50
   val bodies: List[String]            = (0 until nMessages).map(i => s"$i").toList
   val poolSize: Int                   = 2
-  val timeout: FiniteDuration         = 4.seconds // CI is slow...
+  val timeout: FiniteDuration         = 8.seconds // ElasticMQ is slow, as is CI...
   val pollingInterval: FiniteDuration = 100.millis
   val delay: FiniteDuration           = 200.millis
   val delayWithTolerance: Duration    = delay * 0.8 // it looks like activemq is not fully respecting delivery delay
