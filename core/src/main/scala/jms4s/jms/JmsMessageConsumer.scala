@@ -25,11 +25,10 @@ import cats.effect.{ Async, Spawn, Sync }
 import cats.syntax.all._
 
 import scala.concurrent.duration.FiniteDuration
-
-import javax.jms.JMSConsumer
+import javax.jms.MessageConsumer
 
 class JmsMessageConsumer[F[_]: Async] private[jms4s] (
-  private[jms4s] val wrapped: JMSConsumer,
+  private[jms4s] val wrapped: MessageConsumer,
   private[jms4s] val pollingInterval: FiniteDuration
 ) {
 

@@ -107,9 +107,12 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
 )
 
 val catsV                = "2.9.0"
-val jmsV                 = "2.0.1"
+//val jmsV                 = "2.0.1"
+val jmsV = "1.1-rev-1"
 val ibmMQV               = "9.3.1.0"
 val activeMQV            = "2.19.1"
+val sqsV                 = "2.0.2"
+val awsV                 = "2.18.1"
 val catsEffectV          = "3.4.4"
 val catsEffectScalaTestV = "1.5.0"
 val fs2V                 = "3.4.0"
@@ -148,19 +151,31 @@ lazy val activeMQArtemis = project
   .settings(Test / parallelExecution := false)
   .dependsOn(core)
 
+lazy val simpleQueueService = project
+  .in(file("sqs"))
+  .settings(commonSettings, releaseSettings)
+  .settings(name := "jms4s-simple-queue-service")
+  .settings(libraryDependencies ++= Seq(
+    "com.amazonaws" % "amazon-sqs-java-messaging-lib" % sqsV,
+    "software.amazon.awssdk" % "auth" %awsV,
+    "software.amazon.awssdk" % "sqs" %awsV
+  ))
+  .settings(Test / parallelExecution := false)
+  .dependsOn(core)
+
 lazy val tests = project
   .in(file("tests"))
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
   .settings(libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jSlf4jImplV % Runtime)
   .settings(Test / parallelExecution := false)
-  .dependsOn(ibmMQ, activeMQArtemis)
+  .dependsOn(ibmMQ, activeMQArtemis, simpleQueueService)
 
 lazy val examples = project
   .in(file("examples"))
   .settings(commonSettings, releaseSettings)
   .enablePlugins(NoPublishPlugin)
-  .dependsOn(ibmMQ, activeMQArtemis)
+  .dependsOn(ibmMQ, activeMQArtemis, simpleQueueService)
 
 lazy val site = project
   .in(file("site"))
@@ -168,7 +183,7 @@ lazy val site = project
   .enablePlugins(MdocPlugin)
   .enablePlugins(NoPublishPlugin)
   .settings(commonSettings)
-  .dependsOn(core, ibmMQ, activeMQArtemis)
+  .dependsOn(core, ibmMQ, activeMQArtemis, simpleQueueService)
   .settings {
     import microsites._
     Seq(
@@ -216,7 +231,8 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.typelevel" %% "kind-projector"     % kindProjectorV cross CrossVersion.full),
   addCompilerPlugin("com.olegpy"    %% "better-monadic-for" % betterMonadicForV),
   libraryDependencies ++= Seq(
-    "javax.jms"     % "javax.jms-api"                  % jmsV,
+//    "javax.jms"     % "javax.jms-api"                  % jmsV,
+    "javax.jms" % "jms-api" % jmsV,
     "org.typelevel" %% "cats-core"                     % catsV,
     "org.typelevel" %% "cats-effect"                   % catsEffectV,
     "co.fs2"        %% "fs2-core"                      % fs2V,
@@ -241,7 +257,8 @@ lazy val releaseSettings = {
       Developer("azanin", "Alessandro Zanin", "ale.zanin90@gmail.com", url("https://github.com/azanin")),
       Developer("al333z", "Alessandro Zoffoli", "alessandro.zoffoli@gmail.com", url("https://github.com/al333z")),
       Developer("faustin0", "Fausto Di Natale", "dinatalefausto@gmail.com", url("https://github.com/faustin0")),
-      Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti"))
+      Developer("r-tomassetti", "Renato Tomassetti", "r.tomas1989@gmail.com", url("https://github.com/r-tomassetti")),
+      Developer("adamretter", "Adam Retter", "adam.retter@googlemail.com", url("https://github.com/adamretter"))
     )
   )
 }

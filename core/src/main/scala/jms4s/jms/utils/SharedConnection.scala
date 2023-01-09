@@ -19,12 +19,27 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s
+package jms4s.jms.utils
 
-import jms4s.basespec.providers.IbmMQBaseSpec
+import java.util.concurrent.atomic.AtomicInteger
+import javax.jms.Connection
 
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+class SharedConnection(connection: Connection) extends AutoCloseable {
+  private val referenceCount = new AtomicInteger(1)
+
+  def share(): Connection = {
+    referenceCount.incrementAndGet()
+    connection
+  }
+
+  override def close(): Unit = {
+    val count = referenceCount.decrementAndGet()
+    if (count == 0) {
+      // stop the connection
+      connection.stop()
+
+      // close the connection
+      connection.close()
+    }
+  }
+}

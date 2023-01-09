@@ -19,12 +19,29 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s
+package jms4s.basespec.providers
 
-import jms4s.basespec.providers.IbmMQBaseSpec
+import cats.effect.{ Async, IO, Resource }
+import jms4s.JmsClient
+import jms4s.basespec.Jms4sBaseSpec
+import jms4s.config.QueueName
+import jms4s.sqs.simpleQueueService
+import jms4s.sqs.simpleQueueService._
 
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+trait ElasticMQBaseSpec extends Jms4sBaseSpec {
+
+  override val inputQueueName: QueueName   = QueueName("DEV_QUEUE_1")
+  override val outputQueueName1: QueueName = QueueName("DEV_QUEUE_2")
+  override val outputQueueName2: QueueName = QueueName("DEV_QUEUE_3")
+
+  override def jmsClientRes(implicit A: Async[IO]): Resource[IO, JmsClient[IO]] =
+    simpleQueueService.makeJmsClient[IO](
+      Config(
+        endpoint = Endpoint(Some(DirectAddress(HTTP, "localhost", Some(9324))), "elasticmq"),
+        credentials = Some(Credentials("x", "x")),
+        clientId = ClientId("jms-specs"),
+        None
+      )
+    )
+
+}

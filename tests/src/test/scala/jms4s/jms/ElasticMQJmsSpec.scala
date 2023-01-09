@@ -19,12 +19,8 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s
+package jms4s.jms
 
-import jms4s.basespec.providers.IbmMQBaseSpec
+import jms4s.basespec.providers.ElasticMQBaseSpec
 
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+class ElasticMQJmsSpec extends JmsQueueSpec with ElasticMQBaseSpec

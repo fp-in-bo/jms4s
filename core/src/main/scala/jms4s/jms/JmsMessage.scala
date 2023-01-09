@@ -74,7 +74,6 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getJMSType: Option[String]                      = Try(Option(wrapped.getJMSType)).toOpt
   def getJMSExpiration: Option[Long]                  = Try(Option(wrapped.getJMSExpiration)).toOpt
   def getJMSPriority: Option[Int]                     = Try(Option(wrapped.getJMSPriority)).toOpt
-  def getJMSDeliveryTime: Option[Long]                = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
 
   def getBooleanProperty(name: String): Option[Boolean] =
     Try(Option(wrapped.getBooleanProperty(name))).toOpt

@@ -40,3 +40,15 @@ services:
     environment:
       - ARTEMIS_USERNAME=admin
       - ARTEMIS_PASSWORD=passw0rd
+
+  elasticmq-native:
+    image: softwaremill/elasticmq-native
+    ports:
+      - 9324:9324
+      - 9325:9325
+    volumes:
+      - ./scripts/elasticmq.conf:/opt/elasticmq.conf:ro
+    #  Queues
+    #  DEV_QUEUE_1
+    #  DEV_QUEUE_2
+    #  DEV_QUEUE_3

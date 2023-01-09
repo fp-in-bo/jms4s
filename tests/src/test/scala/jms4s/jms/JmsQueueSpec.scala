@@ -19,12 +19,29 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s
+package jms4s.jms
 
-import jms4s.basespec.providers.IbmMQBaseSpec
-
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+trait JmsQueueSpec extends JmsSpec {
+  "publish to a queue and then receive" in {
+    contexts(inputQueueName).use {
+      case (receiveConsumer, sendContext, msg) =>
+        for {
+          _    <- sendContext.send(inputQueueName, msg)
+          text <- receiveBodyAsTextOrFail(receiveConsumer)
+        } yield assert(text == body)
+    }
+  }
+  //  "publish and then receive with a delay" in {
+  //    contexts(inputQueueName).use {
+  //      case (consumer, sendContext, msg) =>
+  //        for {
+  //          producerTimestamp <- Clock[IO].realTime
+  //          _                 <- sendContext.send(inputQueueName, msg, delay)
+  //          msg               <- consumer.receiveJmsMessage
+  //          deliveryTime      <- Clock[IO].realTime
+  //          actualBody        <- msg.asTextF[IO]
+  //          actualDelay       = (deliveryTime - producerTimestamp)
+  //        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+  //    }
+  //  }
+}

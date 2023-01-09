@@ -19,12 +19,29 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package jms4s
+package jms4s.jms
 
-import jms4s.basespec.providers.IbmMQBaseSpec
+import cats.effect.IO
 
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+trait JmsTopicSpec extends JmsSpec {
+
+  "publish to a topic and then receive" in {
+    contexts(topicName1).use {
+      case (consumer, sendContext, msg) =>
+        for {
+          _   <- sendContext.send(topicName1, msg)
+          rec <- receiveBodyAsTextOrFail(consumer)
+        } yield assert(rec == body)
+    }
+  }
+
+  "update and get a JMSMessage property" in {
+    contexts(topicName1).use {
+      case (_, _, msg) =>
+        for {
+          _ <- IO.fromTry(msg.setJMSType("newType"))
+          t = msg.getJMSType
+        } yield assert(t.contains("newType"))
+    }
+  }
+}

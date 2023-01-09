@@ -21,10 +21,6 @@
 
 package jms4s
 
-import jms4s.basespec.providers.IbmMQBaseSpec
+import jms4s.basespec.providers.ElasticMQBaseSpec
 
-class IbmMQJmsClientSpec
-    extends JmsTransactedQueueClientSpec
-    with JmsQueueClientSpec
-    with JmsTopicClientSpec
-    with IbmMQBaseSpec
+class ElasticMQJmsClientSpec extends JmsQueueClientSpec with ElasticMQBaseSpec
