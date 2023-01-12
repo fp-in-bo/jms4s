@@ -47,9 +47,9 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     contexts(inputQueueName).use {
       case (receiveConsumer, sendContext, msg) =>
         for {
-          _    <- sendContext.send(inputQueueName, msg)
-          text <- receiveBodyAsTextOrFail(receiveConsumer)
-        } yield assert(text == body)
+          messageId <- sendContext.send(inputQueueName, msg)
+          text      <- receiveBodyAsTextOrFail(receiveConsumer)
+        } yield assert(text == body && messageId.nonEmpty)
     }
   }
   "publish and then receive with a delay" in {

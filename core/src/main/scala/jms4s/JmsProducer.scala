@@ -78,7 +78,8 @@ object JmsProducer {
 
   private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    disableMessageId: Boolean = false
   ): Resource[F, JmsProducer[F]] =
     for {
       pool <- ContextPool.create(context, concurrencyLevel)
@@ -92,7 +93,7 @@ object JmsProducer {
             for {
               messagesWithDestinations <- f(mf)
               _ <- messagesWithDestinations.traverse_ {
-                    case (message, destinationName) => ctx.send(destinationName, message)
+                    case (message, destinationName) => ctx.send(destinationName, message, disableMessageId)
                   }
             } yield ()
         }
@@ -106,8 +107,8 @@ object JmsProducer {
               messagesWithDestinationsAndDelayes <- f(mf)
               _ <- messagesWithDestinationsAndDelayes.traverse_ {
                     case (message, (destinatioName, duration)) =>
-                      duration.fold(ctx.send(destinatioName, message))(delay =>
-                        ctx.send(destinatioName, message, delay)
+                      duration.fold(ctx.send(destinatioName, message, disableMessageId))(delay =>
+                        ctx.send(destinatioName, message, delay, disableMessageId)
                       )
                   }
 
@@ -121,7 +122,9 @@ object JmsProducer {
           case (ctx, mf) =>
             for {
               (message, (destinationName, delay)) <- f(mf)
-              _                                   <- delay.fold(ctx.send(destinationName, message))(delay => ctx.send(destinationName, message, delay))
+              _ <- delay.fold(ctx.send(destinationName, message, disableMessageId))(delay =>
+                    ctx.send(destinationName, message, delay, disableMessageId)
+                  )
             } yield ()
         }
 
@@ -130,7 +133,7 @@ object JmsProducer {
           case (ctx, mf) =>
             for {
               (message, destination) <- f(mf)
-              _                      <- ctx.send(destination, message)
+              _                      <- ctx.send(destination, message, disableMessageId)
             } yield ()
         }
 
