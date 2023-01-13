@@ -35,17 +35,17 @@ trait JmsProducer[F[_]] {
 
   def sendN(
     messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
-  ): F[Unit]
+  ): F[NonEmptyList[Option[String]]]
 
   def sendNWithDelay(
     messageFactory: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
-  ): F[Unit]
+  ): F[NonEmptyList[Option[String]]]
 
   def sendWithDelay(
     messageFactory: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-  ): F[Unit]
+  ): F[Option[String]]
 
-  def send(messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit]
+  def send(messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Option[String]]
 
 }
 
@@ -87,54 +87,54 @@ object JmsProducer {
 
       override def sendN(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, DestinationName)]]
-      ): F[Unit] =
+      ): F[NonEmptyList[Option[String]]] =
         pool.acquireAndUseContext {
           case (ctx, mf) =>
             for {
               messagesWithDestinations <- f(mf)
-              _ <- messagesWithDestinations.traverse_ {
-                    case (message, destinationName) => ctx.send(destinationName, message, disableMessageId)
-                  }
-            } yield ()
+              messageIds <- messagesWithDestinations.traverse {
+                             case (message, destinationName) => ctx.send(destinationName, message, disableMessageId)
+                           }
+            } yield messageIds
         }
 
       override def sendNWithDelay(
         f: MessageFactory[F] => F[NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]]
-      ): F[Unit] =
+      ): F[NonEmptyList[Option[String]]] =
         pool.acquireAndUseContext {
           case (ctx, mf) =>
             for {
               messagesWithDestinationsAndDelayes <- f(mf)
-              _ <- messagesWithDestinationsAndDelayes.traverse_ {
-                    case (message, (destinatioName, duration)) =>
-                      duration.fold(ctx.send(destinatioName, message, disableMessageId))(delay =>
-                        ctx.send(destinatioName, message, delay, disableMessageId)
-                      )
-                  }
+              messageIds <- messagesWithDestinationsAndDelayes.traverse {
+                             case (message, (destinatioName, duration)) =>
+                               duration.fold(ctx.send(destinatioName, message, disableMessageId))(delay =>
+                                 ctx.send(destinatioName, message, delay, disableMessageId)
+                               )
+                           }
 
-            } yield ()
+            } yield messageIds
         }
 
       override def sendWithDelay(
         f: MessageFactory[F] => F[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
-      ): F[Unit] =
+      ): F[Option[String]] =
         pool.acquireAndUseContext {
           case (ctx, mf) =>
             for {
               (message, (destinationName, delay)) <- f(mf)
-              _ <- delay.fold(ctx.send(destinationName, message, disableMessageId))(delay =>
-                    ctx.send(destinationName, message, delay, disableMessageId)
-                  )
-            } yield ()
+              messageId <- delay.fold(ctx.send(destinationName, message, disableMessageId))(delay =>
+                            ctx.send(destinationName, message, delay, disableMessageId)
+                          )
+            } yield messageId
         }
 
-      override def send(f: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit] =
+      override def send(f: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Option[String]] =
         pool.acquireAndUseContext {
           case (ctx, mf) =>
             for {
               (message, destination) <- f(mf)
-              _                      <- ctx.send(destination, message, disableMessageId)
-            } yield ()
+              messageId              <- ctx.send(destination, message, disableMessageId)
+            } yield messageId
         }
 
     }
