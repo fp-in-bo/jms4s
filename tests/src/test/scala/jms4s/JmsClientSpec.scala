@@ -21,16 +21,16 @@
 
 package jms4s
 
-import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect._
+import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.QueueName
-import jms4s.jms.{ JmsMessage, MessageFactory }
 import jms4s.jms.JmsMessage.JmsTextMessage
+import jms4s.jms.{ JmsMessage, MessageFactory }
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -505,9 +505,11 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield (x, receivedMessages.head)
     }.asserting {
       case (original, received) =>
-        assert(received.getText.contains_("msg"))
-        assert(original.getStringProperty("custom_prop1") == received.getStringProperty("custom_prop1"))
-        assert(received.getStringProperty("custom_prop2").contains("value2"))
+        assert {
+          received.getText.contains_("msg") &&
+          received.getStringProperty("custom_prop1") == original.getStringProperty("custom_prop1") &&
+          received.getStringProperty("custom_prop2").contains("value2")
+        }
     }
 
   }
