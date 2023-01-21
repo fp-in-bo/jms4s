@@ -21,16 +21,16 @@
 
 package jms4s
 
-import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.effect._
+import cats.effect.testing.scalatest.AsyncIOSpec
 import cats.syntax.all._
 import jms4s.JmsAcknowledgerConsumer.AckAction
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
 import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.QueueName
-import jms4s.jms.{ JmsMessage, MessageFactory }
 import jms4s.jms.JmsMessage.JmsTextMessage
+import jms4s.jms.{ JmsMessage, MessageFactory }
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -98,13 +98,12 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         else
                                           TransactionAction.send[IO](newm, outputQueueName2)
                                     }.start
-          _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
-          received1 <- Ref.of[IO, Set[String]](Set())
-          received2 <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- ((
-                               receiveUntil(consumer1, received1, nMessages / 2),
-                               receiveUntil(consumer2, received2, nMessages / 2)
-                             ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          receivedMessages <- (
+                               receiveUntil(consumer1, nMessages / 2),
+                               receiveUntil(consumer2, nMessages / 2)
+                             ).parMapN(_ ++ _)
+                               .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
     }
@@ -170,13 +169,12 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         else
                                           AckAction.send[IO](newm, outputQueueName2)
                                     }.start
-          _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
-          received1 <- Ref.of[IO, Set[String]](Set())
-          received2 <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- ((
-                               receiveUntil(consumer1, received1, nMessages / 2),
-                               receiveUntil(consumer2, received2, nMessages / 2)
-                             ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          receivedMessages <- (
+                               receiveUntil(consumer1, nMessages / 2),
+                               receiveUntil(consumer2, nMessages / 2)
+                             ).parMapN(_ ++ _)
+                               .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
     }
@@ -270,13 +268,12 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                           AutoAckAction.send[IO](tm, outputQueueName1)
                                         else AutoAckAction.send[IO](tm, outputQueueName2)
                                     }.start
-          _         <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
-          received1 <- Ref.of[IO, Set[String]](Set())
-          received2 <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- ((
-                               receiveUntil(consumer1, received1, nMessages / 2),
-                               receiveUntil(consumer2, received2, nMessages / 2)
-                             ).parTupled.timeout(timeout) >> (received1.get, received2.get).mapN(_ ++ _))
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          receivedMessages <- (
+                               receiveUntil(consumer1, nMessages / 2),
+                               receiveUntil(consumer2, nMessages / 2)
+                             ).parMapN(_ ++ _)
+                               .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
         } yield assert(receivedMessages == bodies)
     }
@@ -300,8 +297,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                <- messages.parTraverse_(msg => producer.send(messageFactory(msg, outputQueueName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-          received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, nMessages).timeout(timeout)
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -324,8 +320,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                <- messages.toNel.traverse_(msg => producer.sendN(messageFactory(msg, outputQueueName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-          received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, nMessages).timeout(timeout)
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -348,8 +343,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                <- messages.parTraverse_(msg => producer.send(messageFactory(msg, topicName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-          received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, nMessages).timeout(timeout)
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -372,8 +366,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           _                <- messages.toNel.fold(IO.unit)(ms => producer.sendN(messageFactory(ms, topicName1)))
           _                <- logger.info(s"Pushed ${messages.size} messages.")
           _                <- logger.info(s"Consumer to Producer started.\nCollecting messages from output queue...")
-          received         <- Ref.of[IO, Set[String]](Set())
-          receivedMessages <- receiveUntil(consumer, received, nMessages).timeout(timeout) >> received.get
+          receivedMessages <- receiveUntil(consumer, nMessages).timeout(timeout)
         } yield assert(receivedMessages == bodies)
     }
   }
@@ -401,14 +394,10 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                   messageFactory(msg, outputQueueName2)
                 )
               )
-          _                  <- logger.info(s"Pushed ${messages.size} messages.")
-          _                  <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
-          firstBatch         <- Ref.of[IO, Set[String]](Set())
-          firstBatchMessages <- receiveUntil(consumer1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
-          secondBatch        <- Ref.of[IO, Set[String]](Set())
-          secondBatchMessages <- receiveUntil(consumer2, secondBatch, nMessages).timeout(
-                                  timeout
-                                ) >> secondBatch.get
+          _                   <- logger.info(s"Pushed ${messages.size} messages.")
+          _                   <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
+          firstBatchMessages  <- receiveUntil(consumer1, nMessages).timeout(timeout)
+          secondBatchMessages <- receiveUntil(consumer2, nMessages).timeout(timeout)
         } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
     }
   }
@@ -436,10 +425,8 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
               )
           _                   <- logger.info(s"Pushed ${messages.size} messages.")
           _                   <- logger.info(s"Consumer to Producer started. Collecting messages from output queue...")
-          firstBatch          <- Ref.of[IO, Set[String]](Set())
-          firstBatchMessages  <- receiveUntil(consumer1, firstBatch, nMessages).timeout(timeout) >> firstBatch.get
-          secondBatch         <- Ref.of[IO, Set[String]](Set())
-          secondBatchMessages <- receiveUntil(consumer2, secondBatch, nMessages).timeout(timeout) >> secondBatch.get
+          firstBatchMessages  <- receiveUntil(consumer1, nMessages).timeout(timeout)
+          secondBatchMessages <- receiveUntil(consumer2, nMessages).timeout(timeout)
         } yield assert(firstBatchMessages == bodies && secondBatchMessages == bodies)
     }
   }

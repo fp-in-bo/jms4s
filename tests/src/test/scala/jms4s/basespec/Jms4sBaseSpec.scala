@@ -23,13 +23,13 @@ package jms4s.basespec
 
 import cats.data.NonEmptyList
 import cats.effect._
+import cats.effect.std.CountDownLatch
 import cats.implicits._
-import fs2.concurrent.Channel
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
+import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -64,32 +64,29 @@ trait Jms4sBaseSpec {
 
   def receiveUntil(
     consumer: JmsMessageConsumer[IO],
-    received: Ref[IO, Set[String]],
     nMessages: Int
   ): IO[Set[String]] =
-    receiveBodyAsTextOrFail(consumer)
-      .flatMap(body => received.update(_ + body) *> received.get)
-      .iterateUntil(_.size == nMessages)
+    for {
+      received <- Ref[IO].empty[Set[String]]
+      latch    <- CountDownLatch[IO](nMessages)
+      fiber <- receiveBodyAsTextOrFail(consumer)
+                .flatMap(body => received.update(_ + body) *> latch.release)
+                .foreverM
+                .start
+      _            <- latch.await.guarantee(fiber.cancel)
+      receivedMsgs <- received.get
+    } yield receivedMsgs
 
   def receiveUntil(
     consumer: JmsAutoAcknowledgerConsumer[IO],
     nMessages: Long
   ): IO[List[JmsTextMessage]] =
-    for {
-      channel <- Channel.synchronous[IO, JmsTextMessage]
-      fiber <- consumer.handle {
-                case (msg, _) =>
-                  msg
-                    .asJmsTextMessageF[IO]
-                    .flatMap(channel.send)
-                    .as(AutoAckAction.noOp)
-              }.start
-      count <- channel.stream
-                .take(nMessages)
-                .onFinalize(fiber.cancel)
-                .compile
-                .toList
-    } yield count
+    consumer.stream {
+      case (msg, _) =>
+        msg
+          .asJmsTextMessageF[IO]
+          .map((AutoAckAction.noOp[IO], _))
+    }.take(nMessages).compile.toList
 
   def messageFactory(
     message: JmsTextMessage,
