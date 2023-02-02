@@ -29,8 +29,9 @@ import jms4s.jms.JmsMessage.JmsTextMessage
 import javax.jms.{ Queue, Topic }
 import scala.util.{ Failure, Try }
 
-class MessageFactory[F[_]](private val context: JmsContext[F]) extends AnyVal {
-  def makeTextMessage(value: String): F[JmsTextMessage] = context.createTextMessage(value)
+abstract class MessageFactory[F[_]] {
+
+  def makeTextMessage(value: String): F[JmsTextMessage]
 
   def cloneMessageF(original: JmsTextMessage)(implicit mt: MonadThrow[F]): F[JmsTextMessage] =
     attemptCloneMessage(original).flatMap(_.liftTo[F])
@@ -65,9 +66,15 @@ class MessageFactory[F[_]](private val context: JmsContext[F]) extends AnyVal {
       from.getJMSPriority.traverse_(to.setJMSPriority),
       from.properties.traverse_(props => props.toList.traverse_ { case (k, v) => to.setObjectProperty(k, v) })
     ).combineAll
+}
+
+class DefaultMessageFactory[F[_]: MonadThrow](private val context: JmsContext[F]) extends MessageFactory[F] {
+  override def makeTextMessage(value: String): F[JmsTextMessage] = context.createTextMessage(value)
 
 }
 
 object MessageFactory {
-  def apply[F[_]](context: JmsContext[F]): MessageFactory[F] = new MessageFactory(context)
+
+  def apply[F[_]: MonadThrow](context: JmsContext[F]): MessageFactory[F] =
+    new DefaultMessageFactory(context)
 }
