@@ -21,6 +21,7 @@
 
 package jms4s
 
+import cats.Applicative
 import cats.data.NonEmptyList
 import cats.effect.{ Async, Sync }
 import cats.syntax.all._
@@ -32,7 +33,7 @@ import scala.concurrent.duration.FiniteDuration
 
 trait JmsAutoAcknowledgerConsumer[F[_]] {
   def handle(f: (JmsMessage, MessageFactory[F]) => F[AutoAckAction[F]]): F[Unit]
-  def stream[A](f: (JmsMessage, MessageFactory[F]) => F[(AutoAckAction[F], A)]): fs2.Stream[F, A]
+  def stream: fs2.Stream[F, JmsMessage]
 }
 
 object JmsAutoAcknowledgerConsumer {
@@ -49,13 +50,9 @@ object JmsAutoAcknowledgerConsumer {
             } yield ()
         }.compile.drain
 
-      override def stream[A](action: (JmsMessage, MessageFactory[F]) => F[(AutoAckAction[F], A)]): fs2.Stream[F, A] =
+      override def stream: fs2.Stream[F, JmsMessage] =
         rawConsumer.consume {
-          case (message, context, mf) =>
-            for {
-              res <- action(message, mf)
-              _   <- executeAckAction(res._1, context)
-            } yield res._2
+          case (message, _, _) => Applicative[F].pure(message)
         }
 
       private def executeAckAction(res: AutoAckAction[F], context: JmsContext[F]) =

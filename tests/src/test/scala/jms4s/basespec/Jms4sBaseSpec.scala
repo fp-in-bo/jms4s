@@ -25,15 +25,14 @@ import cats.data.NonEmptyList
 import cats.effect._
 import cats.effect.std.CountDownLatch
 import cats.implicits._
-import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.config.{ DestinationName, QueueName, TopicName }
+import jms4s.config.{DestinationName, QueueName, TopicName}
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
-import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
+import jms4s.jms.{JmsMessageConsumer, MessageFactory}
+import jms4s.{JmsAutoAcknowledgerConsumer, JmsClient}
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import scala.concurrent.duration.{ FiniteDuration, _ }
+import scala.concurrent.duration.{FiniteDuration, _}
 
 trait Jms4sBaseSpec {
   implicit val logger: SelfAwareStructuredLogger[IO] = Slf4jLogger.getLogger[IO]
@@ -81,12 +80,11 @@ trait Jms4sBaseSpec {
     consumer: JmsAutoAcknowledgerConsumer[IO],
     nMessages: Long
   ): IO[List[JmsTextMessage]] =
-    consumer.stream {
-      case (msg, _) =>
-        msg
-          .asJmsTextMessageF[IO]
-          .map((AutoAckAction.noOp[IO], _))
-    }.take(nMessages).compile.toList
+    consumer.stream
+      .evalMap(msg => msg.asJmsTextMessageF[IO])
+      .take(nMessages)
+      .compile
+      .toList
 
   def messageFactory(
     message: JmsTextMessage,

@@ -224,10 +224,10 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         for {
           _ <- messages.traverse_(msg => sendContext.send(inputQueueName, msg))
           _ <- logger.info(s"Pushed ${messages.size} messages.")
-          received <- consumer.stream { (message, _) =>
+          received <- consumer.stream.evalMap { message =>
                        message
                          .asTextF[IO]
-                         .map(body => (AutoAckAction.noOp[IO], "MSG_" + body))
+                         .map(body => "MSG_" + body)
                      }.take(messages.size.toLong).compile.toList
 
         } yield assert(
