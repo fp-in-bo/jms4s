@@ -23,14 +23,13 @@ package jms4s.basespec
 
 import cats.data.NonEmptyList
 import cats.effect._
-import cats.effect.std.UUIDGen
 import cats.implicits._
 import fs2.concurrent.Channel
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
-import jms4s.config.{ DestinationName, QueueName, TemporaryQueue, TemporaryTopic, TopicName }
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
+import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -54,10 +53,6 @@ trait Jms4sBaseSpec {
   val inputQueueName: QueueName       = QueueName("DEV.QUEUE.1")
   val outputQueueName1: QueueName     = QueueName("DEV.QUEUE.2")
   val outputQueueName2: QueueName     = QueueName("DEV.QUEUE.3")
-
-  def newTemporaryTopic: IO[TemporaryTopic] = UUIDGen[IO].randomUUID.map(TemporaryTopic(_))
-
-  def newTemporaryInputQueue: IO[TemporaryQueue] = UUIDGen[IO].randomUUID.map(TemporaryQueue(_))
 
   def receiveBodyAsTextOrFail(consumer: JmsMessageConsumer[IO]): IO[String] =
     consumer.receiveJmsMessage

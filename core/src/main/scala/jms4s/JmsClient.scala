@@ -22,14 +22,13 @@
 package jms4s
 
 import cats.effect.{ Async, Resource }
-import jms4s.config.{ Destination, DestinationName }
+import jms4s.config.DestinationName
 import jms4s.jms._
 import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
 
-class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsContext[F])
-    extends JmsDestinationFactory[F] {
+class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsContext[F]) {
 
   def createTransactedConsumer(
     inputDestinationName: DestinationName,
@@ -90,5 +89,9 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
       .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
       .map(JmsAcknowledgerConsumer.make(_))
 
-  override def createDestination(destination: Destination): F[JmsDestination] = context.createDestination(destination)
+  def createTemporaryQueue: F[JmsDestination.JmsQueue] =
+    context.createTemporaryQueue
+
+  def createTemporaryTopic: F[JmsDestination.JmsTopic] =
+    context.createTemporaryTopic
 }

@@ -23,21 +23,8 @@ package jms4s.config
 
 import cats.Order
 
-import java.util.UUID
+sealed trait DestinationName extends Product with Serializable
 
-sealed trait Destination
-
-sealed trait TemporaryDestination extends Destination
-
-case class TemporaryQueue(value: UUID) extends TemporaryDestination {
-  override def toString: String = s"temporary-queue#$value"
-}
-
-case class TemporaryTopic(value: UUID) extends TemporaryDestination {
-  override def toString: String = s"temporary-topic#$value"
-}
-
-sealed trait DestinationName        extends Destination with Product with Serializable
 case class QueueName(value: String) extends DestinationName
 case class TopicName(value: String) extends DestinationName
 

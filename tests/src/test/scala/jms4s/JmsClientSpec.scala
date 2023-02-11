@@ -563,14 +563,13 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
   }
 
-  s"publish $nMessages messages to a temporary queue and then consume them concurrently with local transactions" in {
+  s"publish $nMessages messages to a temporary queue and then consume them with local transactions" in {
     val res = for {
-      temporaryInputQueue  <- Resource.eval(newTemporaryInputQueue)
       jmsClient            <- jmsClientRes
       context              = jmsClient.context
-      temporaryDestination <- Resource.eval(jmsClient.createDestination(temporaryInputQueue))
-//      temporaryDestination <- Resource.eval(context.createDestination(temporaryInputQueue))
-      consumer    <- jmsClient.createTransactedConsumer(temporaryDestination, poolSize, pollingInterval)
+      temporaryDestination <- Resource.eval(jmsClient.createTemporaryQueue)
+      concurrencyLevel = 1 // IBMMQ defaults create non shareable temp queues
+      consumer    <- jmsClient.createTransactedConsumer(temporaryDestination, concurrencyLevel, pollingInterval)
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
       messages    <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
     } yield (temporaryDestination, consumer, sendContext, bodies.toSet, messages)
