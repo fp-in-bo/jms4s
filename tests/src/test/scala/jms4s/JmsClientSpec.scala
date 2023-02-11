@@ -568,10 +568,10 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
       jmsClient            <- jmsClientRes
       context              = jmsClient.context
       temporaryDestination <- Resource.eval(jmsClient.createTemporaryQueue)
-      concurrencyLevel = 1 // IBMMQ defaults create non shareable temp queues
-      consumer    <- jmsClient.createTransactedConsumer(temporaryDestination, concurrencyLevel, pollingInterval)
-      sendContext <- context.createContext(SessionType.AutoAcknowledge)
-      messages    <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
+      concurrencyLevel     = 1 // IBMMQ defaults create non shareable temp queues
+      consumer             <- jmsClient.createTransactedConsumer(temporaryDestination, concurrencyLevel, pollingInterval)
+      sendContext          <- context.createContext(SessionType.AutoAcknowledge)
+      messages             <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
     } yield (temporaryDestination, consumer, sendContext, bodies.toSet, messages)
 
     res.use {
