@@ -48,20 +48,33 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
       )
       .map(context => new JmsContext(context))
 
-  def send(destinationName: DestinationName, message: JmsMessage): F[Unit] =
-    for {
-      destination <- createDestination(destinationName)
-      p           <- Sync[F].blocking(context.createProducer())
-      _           <- Sync[F].blocking(p.send(destination.wrapped, message.wrapped))
-    } yield ()
+  def send(destinationName: DestinationName, message: JmsMessage): F[Option[String]] =
+    send(destinationName, message, false)
 
-  def send(destinationName: DestinationName, message: JmsMessage, delay: FiniteDuration): F[Unit] =
+  def send(destinationName: DestinationName, message: JmsMessage, disableMessageId: Boolean): F[Option[String]] =
     for {
       destination <- createDestination(destinationName)
-      p           <- Sync[F].blocking(context.createProducer())
+      p           <- Sync[F].blocking(context.createProducer().setDisableMessageID(disableMessageId))
+      _           <- Sync[F].blocking(p.send(destination.wrapped, message.wrapped))
+      messageId   <- Sync[F].pure(Option(message.wrapped.getJMSMessageID))
+    } yield messageId
+
+  def send(destinationName: DestinationName, message: JmsMessage, delay: FiniteDuration): F[Option[String]] =
+    send(destinationName, message, delay, false)
+
+  def send(
+    destinationName: DestinationName,
+    message: JmsMessage,
+    delay: FiniteDuration,
+    disableMessageId: Boolean
+  ): F[Option[String]] =
+    for {
+      destination <- createDestination(destinationName)
+      p           <- Sync[F].blocking(context.createProducer().setDisableMessageID(disableMessageId))
       _           <- Sync[F].delay(p.setDeliveryDelay(delay.toMillis))
       _           <- Sync[F].blocking(p.send(destination.wrapped, message.wrapped))
-    } yield ()
+      messageId   <- Sync[F].pure(Option(message.wrapped.getJMSMessageID))
+    } yield messageId
 
   def createJmsConsumer(
     destinationName: DestinationName,

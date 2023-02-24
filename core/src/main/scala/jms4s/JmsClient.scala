@@ -58,8 +58,9 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
       .map(JmsAcknowledgerConsumer.make(_))
 
   def createProducer(
-    concurrencyLevel: Int
+    concurrencyLevel: Int,
+    disableMessageId: Boolean = false
   ): Resource[F, JmsProducer[F]] =
-    JmsProducer.make[F](context, concurrencyLevel)
+    JmsProducer.make[F](context, concurrencyLevel, disableMessageId)
 
 }
