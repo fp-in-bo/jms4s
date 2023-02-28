@@ -22,11 +22,20 @@
 package jms4s.config
 
 import cats.Order
+import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
 
 sealed trait DestinationName extends Product with Serializable
 
 case class QueueName(value: String) extends DestinationName
 case class TopicName(value: String) extends DestinationName
+
+case class TemporaryQueueName(destination: JmsQueue) extends DestinationName {
+  def value: String = destination.name
+}
+
+case class TemporaryTopicName(destination: JmsTopic) extends DestinationName {
+  def value: String = destination.name
+}
 
 object DestinationName {
 

@@ -497,7 +497,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         _           <- newm.setStringProperty("custom_prop2", "value2").liftTo[IO]
                                       } yield TransactionAction.send[IO](newm, outputQueueName1)
                                     }.start
-          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...") //todo remove
           receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
                                .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
@@ -554,7 +554,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                                  }
                                       } yield action
                                     }.start
-          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...") //todo remove
           receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
                                .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
@@ -591,6 +591,39 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                .timeout(timeout)
                                .guarantee(consumerFiber.cancel)
         } yield assert(receivedMessages == bodies)
+    }
+  }
+
+  s"sendN $nMessages messages in a Queue, consume and move them to a temporary destination" in {
+
+    val res = for {
+      jmsClient          <- jmsClientRes
+      context            = jmsClient.context
+      messages           <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
+      tempQ              <- Resource.eval(jmsClient.createTemporaryQueue)
+      producer           <- jmsClient.createProducer(poolSize)
+      consumer           <- jmsClient.createAcknowledgerConsumer(inputQueueName, poolSize, pollingInterval)
+      downstreamConsumer <- jmsClient.createAutoAcknowledgerConsumer(tempQ, 1, pollingInterval)
+    } yield (producer, consumer, messages, tempQ, downstreamConsumer)
+
+    res.use {
+      case (producer, consumer, messages, tempQ, downstreamConsumer) =>
+        for {
+          _ <- messages.toNel.traverse_(msg => producer.sendN(messageFactory(msg, inputQueueName)))
+          _ <- logger.info(s"Pushed ${messages.size} messages.")
+          consumer <- consumer.handle {
+                       case (_, mf) =>
+                         mf.makeTextMessage("moved").map(AckAction.send[IO](_, tempQ))
+                     }.start
+
+          received <- receiveUntil(downstreamConsumer, messages.size.toLong)
+                       .timeout(timeout)
+                       .guarantee(consumer.cancel)
+          texts <- received.traverse(_.asTextF[IO])
+        } yield assert(
+          texts.size == messages.size &&
+            texts.forall(_.startsWith("moved"))
+        )
     }
   }
 }

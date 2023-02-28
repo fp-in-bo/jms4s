@@ -26,6 +26,7 @@ import cats.effect.kernel.{ Async, Concurrent }
 import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2._
+import jms4s.config.DestinationName
 import jms4s.model.SessionType
 
 import scala.concurrent.duration.FiniteDuration
@@ -53,7 +54,7 @@ object PooledConsumer {
 
   private[jms4s] def make[F[_]: Async](
     context: JmsContext[F],
-    inputJmsDestination: JmsDestination,
+    inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration,
     sessionType: SessionType
@@ -65,7 +66,7 @@ object PooledConsumer {
       _ <- (0 until concurrencyLevel).toList.traverse_ { _ =>
             for {
               ctx      <- context.createContext(sessionType)
-              consumer <- ctx.createJmsConsumer(inputJmsDestination, pollingInterval)
+              consumer <- ctx.createJmsConsumer(inputDestinationName, pollingInterval)
               _        <- Resource.eval(pool.offer((ctx, consumer, MessageFactory[F](ctx))))
             } yield ()
           }

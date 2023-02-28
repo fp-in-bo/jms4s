@@ -22,7 +22,8 @@
 package jms4s
 
 import cats.effect.{ Async, Resource }
-import jms4s.config.DestinationName
+import cats.syntax.all._
+import jms4s.config.{ DestinationName, TemporaryQueueName, TemporaryTopicName }
 import jms4s.jms._
 import jms4s.model.SessionType
 
@@ -35,63 +36,36 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsTransactedConsumer[F]] =
-    Resource
-      .eval(context.createDestination(inputDestinationName))
-      .flatMap(createTransactedConsumer(_, concurrencyLevel, pollingInterval))
+    PooledConsumer
+      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.Transacted)
+      .map(JmsTransactedConsumer.make(_))
 
   def createAutoAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    Resource
-      .eval(context.createDestination(inputDestinationName))
-      .flatMap(createAutoAcknowledgerConsumer(_, concurrencyLevel, pollingInterval))
+    PooledConsumer
+      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
+      .map(JmsAutoAcknowledgerConsumer.make(_))
 
   def createAcknowledgerConsumer(
     inputDestinationName: DestinationName,
     concurrencyLevel: Int,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    Resource
-      .eval(context.createDestination(inputDestinationName))
-      .flatMap(createAcknowledgerConsumer(_, concurrencyLevel, pollingInterval))
+    PooledConsumer
+      .make[F](context, inputDestinationName, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
+      .map(JmsAcknowledgerConsumer.make(_))
 
   def createProducer(
     concurrencyLevel: Int
   ): Resource[F, JmsProducer[F]] =
     JmsProducer.make[F](context, concurrencyLevel)
 
-  def createTransactedConsumer(
-    inputJmsDestination: JmsDestination,
-    concurrencyLevel: Int,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsTransactedConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.Transacted)
-      .map(JmsTransactedConsumer.make(_))
+  def createTemporaryQueue: F[DestinationName] =
+    context.createTemporaryQueue.map(TemporaryQueueName)
 
-  def createAutoAcknowledgerConsumer(
-    inputJmsDestination: JmsDestination,
-    concurrencyLevel: Int,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsAutoAcknowledgerConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.AutoAcknowledge)
-      .map(JmsAutoAcknowledgerConsumer.make(_))
-
-  def createAcknowledgerConsumer(
-    inputJmsDestination: JmsDestination,
-    concurrencyLevel: Int,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsAcknowledgerConsumer[F]] =
-    PooledConsumer
-      .make[F](context, inputJmsDestination, concurrencyLevel, pollingInterval, SessionType.ClientAcknowledge)
-      .map(JmsAcknowledgerConsumer.make(_))
-
-  def createTemporaryQueue: F[JmsDestination.JmsQueue] =
-    context.createTemporaryQueue
-
-  def createTemporaryTopic: F[JmsDestination.JmsTopic] =
-    context.createTemporaryTopic
+  def createTemporaryTopic: F[DestinationName] =
+    context.createTemporaryTopic.map(TemporaryTopicName)
 }
