@@ -121,7 +121,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
     }
   }
-  "publish to a tempoary topic and then receive" in {
+  "publish to a temporary topic and then receive" in {
     contextsWithTempTopic.use {
       case (consumer, jmsDestination, sendContext, msg) =>
         for {

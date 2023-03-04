@@ -23,7 +23,7 @@ package jms4s.jms
 
 import cats.effect.{ Async, Resource, Sync }
 import cats.syntax.all._
-import jms4s.config.{ DestinationName, QueueName, TemporaryQueueName, TemporaryTopicName, TopicName }
+import jms4s.config._
 import jms4s.jms.JmsDestination.{ JmsQueue, JmsTopic }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.model.SessionType
@@ -49,16 +49,10 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
       .map(context => new JmsContext(context))
 
   def send(destinationName: DestinationName, message: JmsMessage): F[Unit] =
-    destinationName match {
-      case TemporaryQueueName(destination) => send(destination, message)
-      case d                               => createDestination(d).flatMap(send(_, message))
-    }
+    toJmsDestination(destinationName).flatMap(send(_, message))
 
   def send(destinationName: DestinationName, message: JmsMessage, delay: FiniteDuration): F[Unit] =
-    destinationName match {
-      case TemporaryQueueName(destination) => send(destination, message, delay)
-      case d                               => createDestination(d).flatMap(send(_, message, delay))
-    }
+    toJmsDestination(destinationName).flatMap(send(_, message, delay))
 
   def send(jmsDestination: JmsDestination, message: JmsMessage): F[Unit] =
     for {
@@ -91,20 +85,13 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
     destinationName: DestinationName,
     pollingInterval: FiniteDuration
   ): Resource[F, JmsMessageConsumer[F]] =
-    Resource
-      .eval(createDestination(destinationName))
-      .flatMap(createJmsConsumer(_, pollingInterval))
-
-  def createJmsConsumer(
-    jmsDestination: JmsDestination,
-    pollingInterval: FiniteDuration
-  ): Resource[F, JmsMessageConsumer[F]] =
     for {
+      destination <- Resource.eval(toJmsDestination(destinationName))
       consumer <- Resource.make(
-                   Logger[F].info(s"Creating consumer for destination $jmsDestination") *>
-                     Sync[F].blocking(context.createConsumer(jmsDestination.wrapped))
+                   Logger[F].info(s"Creating consumer for destination $destination") *>
+                     Sync[F].blocking(context.createConsumer(destination.wrapped))
                  )(consumer =>
-                   Logger[F].info(s"Closing consumer for destination $jmsDestination") *>
+                   Logger[F].info(s"Closing consumer for destination $destination") *>
                      Sync[F].blocking(consumer.close())
                  )
     } yield new JmsMessageConsumer[F](consumer, pollingInterval)
@@ -128,7 +115,7 @@ class JmsContext[F[_]: Async: Logger](private val context: JMSContext) {
   def createTemporaryQueue: F[JmsQueue] =
     Sync[F].blocking(context.createTemporaryQueue()).map(new JmsQueue(_))
 
-  def createDestination(destination: DestinationName): F[JmsDestination] = destination match {
+  private def toJmsDestination(destination: DestinationName): F[JmsDestination] = destination match {
     case qn: QueueName                   => createQueue(qn).widen[JmsDestination]
     case tn: TopicName                   => createTopic(tn).widen[JmsDestination]
     case TemporaryQueueName(destination) => destination.pure[F].widen[JmsDestination]

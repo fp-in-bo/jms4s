@@ -49,7 +49,7 @@ object JmsAutoAcknowledgerConsumer {
                     send.messages.messagesAndDestinations.traverse_ {
                       case (message, (name, Some(delay))) => context.send(name, message, delay)
                       case (message, (name, None))        => context.send(name, message)
-                    } *> Sync[F].blocking(message.wrapped.acknowledge())
+                    }
                 )
           } yield ()
       }.compile.drain

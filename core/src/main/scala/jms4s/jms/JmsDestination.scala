@@ -21,6 +21,8 @@
 
 package jms4s.jms
 
+import cats.Show
+
 import javax.jms.{ Destination, Queue, Topic }
 
 sealed abstract class JmsDestination {
@@ -39,4 +41,6 @@ object JmsDestination {
   class JmsTopic private[jms4s] (private[jms4s] val wrapped: Topic) extends JmsDestination {
     override def name: String = wrapped.getTopicName
   }
+
+  implicit val showDestination: Show[JmsDestination] = Show.fromToString[JmsDestination]
 }

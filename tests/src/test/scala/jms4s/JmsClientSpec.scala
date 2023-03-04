@@ -594,7 +594,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
     }
   }
 
-  s"sendN $nMessages messages in a Queue, consume and move them to a temporary destination" in {
+  s"sendN $nMessages messages in a Queue, consume and move them to a temporary Queue" in {
 
     val res = for {
       jmsClient          <- jmsClientRes

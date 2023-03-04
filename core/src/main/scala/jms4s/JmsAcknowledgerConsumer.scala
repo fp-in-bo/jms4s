@@ -102,9 +102,7 @@ object JmsAcknowledgerConsumer {
     def sendN[F[_]](
       messages: NonEmptyList[(JmsMessage, DestinationName)]
     ): AckAction[F] =
-      Send[F](ToSend[F](messages.map {
-        case (message, destinationName: DestinationName) => (message, (destinationName, None))
-      }))
+      Send[F](ToSend[F](messages.map { case (message, name) => (message, (name, None)) }))
 
     def sendNWithDelay[F[_]](
       messages: NonEmptyList[(JmsMessage, (DestinationName, Option[FiniteDuration]))]
@@ -112,16 +110,16 @@ object JmsAcknowledgerConsumer {
 
     def sendWithDelay[F[_]](
       message: JmsMessage,
-      destinationName: DestinationName,
+      destination: DestinationName,
       duration: Option[FiniteDuration]
     ): AckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destinationName, duration)))))
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, duration)))))
 
     def send[F[_]](
       message: JmsMessage,
-      destinationName: DestinationName
+      destination: DestinationName
     ): AckAction[F] =
-      Send[F](ToSend[F](NonEmptyList.one((message, (destinationName, None)))))
+      Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
 
   }
 }
