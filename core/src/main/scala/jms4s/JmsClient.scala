@@ -63,9 +63,9 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
   ): Resource[F, JmsProducer[F]] =
     JmsProducer.make[F](context, concurrencyLevel)
 
-  def createTemporaryQueue: F[DestinationName] =
+  def createTemporaryQueue: F[TemporaryQueueName] =
     context.createTemporaryQueue.map(TemporaryQueueName)
 
-  def createTemporaryTopic: F[DestinationName] =
+  def createTemporaryTopic: F[TemporaryTopicName] =
     context.createTemporaryTopic.map(TemporaryTopicName)
 }

@@ -22,7 +22,7 @@
 package jms4s.jms
 
 import cats.syntax.all._
-import cats.{ ApplicativeError, Show }
+import cats.{ ApplicativeError, MonadThrow, Show }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
 import jms4s.jms.utils.TryUtils._
 
@@ -68,13 +68,18 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getJMSCorrelationId: Option[String]             = Try(Option(wrapped.getJMSCorrelationID)).toOpt
   def getJMSCorrelationIdAsBytes: Option[Array[Byte]] = Try(Option(wrapped.getJMSCorrelationIDAsBytes)).toOpt
   def getJMSReplyTo: Option[Destination]              = Try(Option(wrapped.getJMSReplyTo)).toOpt
-  def getJMSDestination: Option[Destination]          = Try(Option(wrapped.getJMSDestination)).toOpt
-  def getJMSDeliveryMode: Option[Int]                 = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
-  def getJMSRedelivered: Option[Boolean]              = Try(Option(wrapped.getJMSRedelivered)).toOpt
-  def getJMSType: Option[String]                      = Try(Option(wrapped.getJMSType)).toOpt
-  def getJMSExpiration: Option[Long]                  = Try(Option(wrapped.getJMSExpiration)).toOpt
-  def getJMSPriority: Option[Int]                     = Try(Option(wrapped.getJMSPriority)).toOpt
-  def getJMSDeliveryTime: Option[Long]                = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
+
+  def getJMSReplyToF[F[_]: MonadThrow]: F[Destination] =
+    MonadThrow[F]
+      .catchNonFatal(wrapped.getJMSReplyTo)
+      .ensureOr(_ => new NoSuchElementException("ReplyTo is null"))(_ != null)
+  def getJMSDestination: Option[Destination] = Try(Option(wrapped.getJMSDestination)).toOpt
+  def getJMSDeliveryMode: Option[Int]        = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
+  def getJMSRedelivered: Option[Boolean]     = Try(Option(wrapped.getJMSRedelivered)).toOpt
+  def getJMSType: Option[String]             = Try(Option(wrapped.getJMSType)).toOpt
+  def getJMSExpiration: Option[Long]         = Try(Option(wrapped.getJMSExpiration)).toOpt
+  def getJMSPriority: Option[Int]            = Try(Option(wrapped.getJMSPriority)).toOpt
+  def getJMSDeliveryTime: Option[Long]       = Try(Option(wrapped.getJMSDeliveryTime)).toOpt
 
   def getBooleanProperty(name: String): Option[Boolean] =
     Try(Option(wrapped.getBooleanProperty(name))).toOpt

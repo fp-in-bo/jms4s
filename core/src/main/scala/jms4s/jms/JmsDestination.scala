@@ -42,5 +42,16 @@ object JmsDestination {
     override def name: String = wrapped.getTopicName
   }
 
+  class Other private[jms4s] (private[jms4s] val wrapped: Destination) extends JmsDestination {
+    override def name: String = wrapped.toString
+  }
+
+  def fromDestination(destination: Destination): JmsDestination =
+    destination match {
+      case queue: Queue => new JmsQueue(queue)
+      case topic: Topic => new JmsTopic(topic)
+      case x            => new Other(x)
+    }
+
   implicit val showDestination: Show[JmsDestination] = Show.fromToString[JmsDestination]
 }
