@@ -30,7 +30,7 @@ import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.QueueName
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{JmsDestination, JmsMessage, MessageFactory}
+import jms4s.jms.{ JmsDestination, JmsMessage, MessageFactory }
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
