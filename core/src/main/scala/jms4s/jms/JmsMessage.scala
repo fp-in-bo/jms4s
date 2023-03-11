@@ -23,10 +23,11 @@ package jms4s.jms
 
 import cats.syntax.all._
 import cats.{ ApplicativeError, MonadThrow, Show }
+import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.{ JmsTextMessage, UnsupportedMessage }
 import jms4s.jms.utils.TryUtils._
 
-import javax.jms.{ Destination, Message, TextMessage }
+import javax.jms._
 import scala.util.control.NoStackTrace
 import scala.util.{ Failure, Success, Try }
 
@@ -69,10 +70,15 @@ class JmsMessage private[jms4s] (private[jms4s] val wrapped: Message) {
   def getJMSCorrelationIdAsBytes: Option[Array[Byte]] = Try(Option(wrapped.getJMSCorrelationIDAsBytes)).toOpt
   def getJMSReplyTo: Option[Destination]              = Try(Option(wrapped.getJMSReplyTo)).toOpt
 
-  def getJMSReplyToF[F[_]: MonadThrow]: F[Destination] =
+  def getJMSReplyToNameF[F[_]: MonadThrow]: F[DestinationName] =
     MonadThrow[F]
       .catchNonFatal(wrapped.getJMSReplyTo)
       .ensureOr(_ => new NoSuchElementException("ReplyTo is null"))(_ != null)
+      .flatMap {
+        case q: Queue => QueueName(q.getQueueName).pure.widen
+        case t: Topic => TopicName(t.getTopicName).pure.widen
+        case x        => new Exception(s"Failure extracting JMSReplyTo, unsupported Destination: $x").raiseError
+      }
   def getJMSDestination: Option[Destination] = Try(Option(wrapped.getJMSDestination)).toOpt
   def getJMSDeliveryMode: Option[Int]        = Try(Option(wrapped.getJMSDeliveryMode)).toOpt
   def getJMSRedelivered: Option[Boolean]     = Try(Option(wrapped.getJMSRedelivered)).toOpt

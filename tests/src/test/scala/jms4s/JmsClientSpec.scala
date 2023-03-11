@@ -30,7 +30,7 @@ import jms4s.JmsTransactedConsumer.TransactionAction
 import jms4s.basespec.Jms4sBaseSpec
 import jms4s.config.QueueName
 import jms4s.jms.JmsMessage.JmsTextMessage
-import jms4s.jms.{ JmsDestination, JmsMessage, MessageFactory }
+import jms4s.jms.{ JmsMessage, MessageFactory }
 import jms4s.model.SessionType
 import org.scalatest.freespec.AsyncFreeSpec
 
@@ -618,10 +618,9 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           consumer <- consumer.handle {
                        case (request, mf) =>
                          for {
-                           responseDest <- request.getJMSReplyToF[IO]
+                           responseDest <- request.getJMSReplyToNameF[IO]
                            responseMsg  <- mf.makeTextMessage("response")
-                         } yield AckAction
-                           .send[IO](responseMsg, QueueName(JmsDestination.fromDestination(responseDest).name))
+                         } yield AckAction.send[IO](responseMsg, responseDest)
                      }.start
 
           received <- receiveUntil(responseConsumer, bodies.size.toLong)
