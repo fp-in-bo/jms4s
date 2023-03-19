@@ -48,10 +48,8 @@ object JmsAcknowledgerConsumer {
                     ifNoAck = Sync[F].unit,
                     ifSend = send =>
                       send.messages.messagesAndDestinations.traverse_ {
-                        case (message, (name, delay)) =>
-                          delay.fold(ifEmpty = context.send(name, message))(
-                            f = d => context.send(name, message, d)
-                          )
+                        case (message, (name, Some(delay))) => context.send(name, message, delay)
+                        case (message, (name, None))        => context.send(name, message)
                       } *> Sync[F].blocking(message.wrapped.acknowledge())
                   )
             } yield ()
@@ -122,5 +120,6 @@ object JmsAcknowledgerConsumer {
       destination: DestinationName
     ): AckAction[F] =
       Send[F](ToSend[F](NonEmptyList.one((message, (destination, None)))))
+
   }
 }

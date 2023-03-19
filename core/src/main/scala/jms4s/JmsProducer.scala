@@ -46,7 +46,6 @@ trait JmsProducer[F[_]] {
   ): F[Unit]
 
   def send(messageFactory: MessageFactory[F] => F[(JmsMessage, DestinationName)]): F[Unit]
-
 }
 
 private[jms4s] class ContextPool[F[_]: Sync](private val contextsPool: Queue[F, (JmsContext[F], MessageFactory[F])]) {

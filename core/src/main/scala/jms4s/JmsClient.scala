@@ -22,7 +22,8 @@
 package jms4s
 
 import cats.effect.{ Async, Resource }
-import jms4s.config.DestinationName
+import cats.syntax.all._
+import jms4s.config.{ DestinationName, TemporaryQueueName, TemporaryTopicName }
 import jms4s.jms._
 import jms4s.model.SessionType
 
@@ -62,4 +63,9 @@ class JmsClient[F[_]: Async] private[jms4s] (private[jms4s] val context: JmsCont
   ): Resource[F, JmsProducer[F]] =
     JmsProducer.make[F](context, concurrencyLevel)
 
+  def createTemporaryQueue: F[TemporaryQueueName] =
+    context.createTemporaryQueue.map(TemporaryQueueName)
+
+  def createTemporaryTopic: F[TemporaryTopicName] =
+    context.createTemporaryTopic.map(TemporaryTopicName)
 }

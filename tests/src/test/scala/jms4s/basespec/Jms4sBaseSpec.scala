@@ -26,12 +26,12 @@ import cats.effect._
 import cats.implicits._
 import fs2.concurrent.Channel
 import jms4s.JmsAutoAcknowledgerConsumer.AutoAckAction
-import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import jms4s.config.{ DestinationName, QueueName, TopicName }
 import jms4s.jms.JmsMessage.JmsTextMessage
 import jms4s.jms.{ JmsMessageConsumer, MessageFactory }
-import org.typelevel.log4cats.SelfAwareStructuredLogger
+import jms4s.{ JmsAutoAcknowledgerConsumer, JmsClient }
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.{ Logger, SelfAwareStructuredLogger }
 
 import scala.concurrent.duration.{ FiniteDuration, _ }
 
@@ -84,6 +84,7 @@ trait Jms4sBaseSpec {
                     .flatMap(channel.send)
                     .as(AutoAckAction.noOp)
               }.start
+      _ <- Logger[IO].info(s"Collecting $nMessages messages from output queue...")
       count <- channel.stream
                 .take(nMessages)
                 .onFinalize(fiber.cancel)
