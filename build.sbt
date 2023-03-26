@@ -2,8 +2,9 @@ import sbtghactions.JavaSpec.Distribution.Adopt
 
 val Scala213 = "2.13.10"
 val Scala212 = "2.12.17"
-val Java18   = JavaSpec(Adopt, "8")
+val Java8    = JavaSpec(Adopt, "8")
 val Java11   = JavaSpec(Adopt, "11")
+val Java17   = JavaSpec(Adopt, "17")
 
 enablePlugins(SonatypeCiReleasePlugin)
 Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -16,7 +17,7 @@ ThisBuild / organization := "dev.fpinbo"
 ThisBuild / organizationName := "Functional Programming in Bologna"
 ThisBuild / publishFullName := "Alessandro Zoffoli"
 ThisBuild / publishGithubUser := "al333z"
-ThisBuild / githubWorkflowJavaVersions := Seq(Java18, Java11)
+ThisBuild / githubWorkflowJavaVersions := Seq(Java8, Java17)
 ThisBuild / baseVersion := "0.0.1"
 
 //CI definition
@@ -70,7 +71,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     //These are useless but we don't know how to remove the scalas and javas attributes
     // (if you provide empty list it will create an empty list in the yml which is wrong)
     scalas = List(Scala213),
-    javas = List(Java18)
+    javas = List(Java17)
   )
 )
 
@@ -88,7 +89,7 @@ ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
   id = "site",
   name = "Deploy site",
   needs = List("build"),
-  javas = List(Java11),
+  javas = List(Java17),
   scalas = List(Scala213),
   cond = """
            | always() &&
@@ -146,6 +147,7 @@ lazy val activeMQArtemis = project
   .settings(name := "jms4s-active-mq-artemis")
   .settings(libraryDependencies += "org.apache.activemq" % "artemis-jms-client-all" % activeMQV)
   .settings(Test / parallelExecution := false)
+  .settings(githubWorkflowJavaVersions := Seq(Java11, Java17))
   .dependsOn(core)
 
 lazy val tests = project
