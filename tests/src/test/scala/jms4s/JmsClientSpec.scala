@@ -38,7 +38,7 @@ import scala.concurrent.duration.DurationInt
 
 trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
 
-  s"publish $nMessages messages and then consume them concurrently with local transactions" in {
+  s"publish $nMessages messages to a queue and then consume them concurrently with local transactions" in {
     val res = for {
       jmsClient   <- jmsClientRes
       context     = jmsClient.context
@@ -497,7 +497,7 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                         _           <- newm.setStringProperty("custom_prop2", "value2").liftTo[IO]
                                       } yield TransactionAction.send[IO](newm, outputQueueName1)
                                     }.start
-          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...") //todo remove
           receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
                                .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
@@ -554,12 +554,83 @@ trait JmsClientSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                                                  }
                                       } yield action
                                     }.start
-          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...")
+          _ <- logger.info(s"Consumer to Producer started. Collecting messages from output queues...") //todo remove
           receivedMessages <- receiveUntil(downstreamConsumer, nMessages = 1)
                                .timeout(timeout)
                                .guarantee(consumerToProducerFiber.cancel)
         } yield receivedMessages.head
     }.asserting(received => assert(received.getText.contains_("MSG")))
 
+  }
+
+  s"publish $nMessages messages to a temporary queue and then consume them with local transactions" in {
+    val res = for {
+      jmsClient            <- jmsClientRes
+      context              = jmsClient.context
+      temporaryDestination <- Resource.eval(jmsClient.createTemporaryQueue)
+      concurrencyLevel     = 1 // IBMMQ defaults create non shareable temp queues
+      consumer             <- jmsClient.createTransactedConsumer(temporaryDestination, concurrencyLevel, pollingInterval)
+      sendContext          <- context.createContext(SessionType.AutoAcknowledge)
+      messages             <- Resource.eval(bodies.traverse(i => context.createTextMessage(i)))
+    } yield (temporaryDestination, consumer, sendContext, bodies.toSet, messages)
+
+    res.use {
+      case (temporaryDestination, consumer, context, bodies, messages) =>
+        for {
+          _        <- messages.traverse_(msg => context.send(temporaryDestination, msg))
+          _        <- logger.info(s"Pushed ${messages.size} messages.")
+          received <- Ref.of[IO, Set[String]](Set())
+          consumerFiber <- consumer.handle { (message, _) =>
+                            for {
+                              body <- message.asTextF[IO]
+                              _    <- received.update(_ + body)
+                            } yield TransactionAction.commit
+                          }.start
+          _ <- logger.info(s"Consumer started. Collecting messages from the queue...")
+          receivedMessages <- (received.get.iterateUntil(_.eqv(bodies)) >> received.get)
+                               .timeout(timeout)
+                               .guarantee(consumerFiber.cancel)
+        } yield assert(receivedMessages == bodies)
+    }
+  }
+
+  s"sendN $nMessages request(with a replyTo) in a Queue, consume them and respond in a temporary Queue" in {
+    val res = for {
+      jmsClient        <- jmsClientRes
+      responseQ        <- Resource.eval(jmsClient.createTemporaryQueue)
+      producer         <- jmsClient.createProducer(poolSize)
+      replier          <- jmsClient.createAcknowledgerConsumer(inputQueueName, poolSize, pollingInterval)
+      responseConsumer <- jmsClient.createAutoAcknowledgerConsumer(responseQ, 1, pollingInterval)
+    } yield (producer, replier, responseQ, responseConsumer)
+
+    res.use {
+      case (producer, consumer, responseQ, responseConsumer) =>
+        for {
+          _ <- bodies.parTraverse { msg =>
+                producer.send(mf =>
+                  for {
+                    msg <- mf.makeTextMessage(msg)
+                    _   <- msg.setJMSReplyTo(responseQ.destination).liftTo[IO]
+                  } yield (msg, inputQueueName)
+                )
+              }
+          _ <- logger.info(s"Pushed ${bodies.size} messages.")
+          consumer <- consumer.handle {
+                       case (request, mf) =>
+                         for {
+                           responseDest <- request.getJMSReplyToNameF[IO]
+                           responseMsg  <- mf.makeTextMessage("response")
+                         } yield AckAction.send[IO](responseMsg, responseDest)
+                     }.start
+
+          received <- receiveUntil(responseConsumer, bodies.size.toLong)
+                       .timeout(timeout)
+                       .guarantee(consumer.cancel)
+          texts <- received.traverse(_.asTextF[IO])
+        } yield assert(
+          texts.size == bodies.size &&
+            texts.forall(_.startsWith("response"))
+        )
+    }
   }
 }

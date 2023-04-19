@@ -21,13 +21,37 @@
 
 package jms4s.jms
 
+import cats.Show
+
 import javax.jms.{ Destination, Queue, Topic }
 
 sealed abstract class JmsDestination {
   private[jms4s] val wrapped: Destination
+  def name: String
+
+  override def toString: String = s"${getClass.getSimpleName}($name)"
 }
 
 object JmsDestination {
-  class JmsQueue private[jms4s] (private[jms4s] val wrapped: Queue) extends JmsDestination
-  class JmsTopic private[jms4s] (private[jms4s] val wrapped: Topic) extends JmsDestination
+
+  class JmsQueue private[jms4s] (private[jms4s] val wrapped: Queue) extends JmsDestination {
+    override def name: String = wrapped.getQueueName
+  }
+
+  class JmsTopic private[jms4s] (private[jms4s] val wrapped: Topic) extends JmsDestination {
+    override def name: String = wrapped.getTopicName
+  }
+
+  class Other private[jms4s] (private[jms4s] val wrapped: Destination) extends JmsDestination {
+    override def name: String = wrapped.toString
+  }
+
+  def fromDestination(destination: Destination): JmsDestination =
+    destination match {
+      case queue: Queue => new JmsQueue(queue)
+      case topic: Topic => new JmsTopic(topic)
+      case x            => new Other(x)
+    }
+
+  implicit val showDestination: Show[JmsDestination] = Show.fromToString[JmsDestination]
 }

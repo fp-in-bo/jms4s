@@ -40,8 +40,32 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
                           .createContext(SessionType.AutoAcknowledge)
                           .flatMap(_.createJmsConsumer(destination, 50.millis))
       sendContext <- context.createContext(SessionType.AutoAcknowledge)
-      msg         <- Resource.eval(context.createTextMessage(body))
+      msg         <- Resource.eval(context.createTextMessage(body)) // TODO create from sendContext?
     } yield (receiveConsumer, sendContext, msg)
+
+  private def contextsWithTempQueue =
+    for {
+      client               <- jmsClientRes
+      temporaryDestination <- Resource.eval(client.createTemporaryQueue)
+      context              = client.context
+      receiveConsumer <- context
+                          .createContext(SessionType.AutoAcknowledge)
+                          .flatMap(_.createJmsConsumer(temporaryDestination, 50.millis))
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      msg         <- Resource.eval(context.createTextMessage(body)) // TODO create from sendContext?
+    } yield (receiveConsumer, temporaryDestination, sendContext, msg)
+
+  private def contextsWithTempTopic =
+    for {
+      client               <- jmsClientRes
+      temporaryDestination <- Resource.eval(client.createTemporaryTopic)
+      context              = client.context
+      receiveConsumer <- context
+                          .createContext(SessionType.AutoAcknowledge)
+                          .flatMap(_.createJmsConsumer(temporaryDestination, 50.millis))
+      sendContext <- context.createContext(SessionType.AutoAcknowledge)
+      msg         <- Resource.eval(context.createTextMessage(body)) // TODO create from sendContext?
+    } yield (receiveConsumer, temporaryDestination, sendContext, msg)
 
   "publish to a queue and then receive" in {
     contexts(inputQueueName).use {
@@ -52,7 +76,7 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
         } yield assert(text == body)
     }
   }
-  "publish and then receive with a delay" in {
+  "publish to a queue and then receive with a delay" in {
     contexts(inputQueueName).use {
       case (consumer, sendContext, msg) =>
         for {
@@ -73,6 +97,39 @@ trait JmsSpec extends AsyncFreeSpec with AsyncIOSpec with Jms4sBaseSpec {
           rec <- receiveBodyAsTextOrFail(consumer)
         } yield assert(rec == body)
     }
+  }
+
+  "publish to a temporary queue and then receive" in {
+    contextsWithTempQueue.use {
+      case (receiveConsumer, jmsDestination, sendContext, msg) =>
+        for {
+          _    <- sendContext.send(jmsDestination, msg)
+          text <- receiveBodyAsTextOrFail(receiveConsumer)
+        } yield assert(text == body)
+    }
+  }
+  "publish to a temporary queue and then receive with a delay" in {
+    contextsWithTempQueue.use {
+      case (consumer, jmsDestination, sendContext, msg) =>
+        for {
+          producerTimestamp <- Clock[IO].realTime
+          _                 <- sendContext.send(jmsDestination, msg, delay)
+          msg               <- consumer.receiveJmsMessage
+          deliveryTime      <- Clock[IO].realTime
+          actualBody        <- msg.asTextF[IO]
+          actualDelay       = (deliveryTime - producerTimestamp)
+        } yield assert(actualDelay >= delayWithTolerance && actualBody == body)
+    }
+  }
+  "publish to a temporary topic and then receive" in {
+    contextsWithTempTopic.use {
+      case (consumer, jmsDestination, sendContext, msg) =>
+        for {
+          _   <- sendContext.send(jmsDestination, msg)
+          rec <- receiveBodyAsTextOrFail(consumer)
+        } yield assert(rec == body)
+    }
+
   }
 
   "update and get a JMSMessage property" in {

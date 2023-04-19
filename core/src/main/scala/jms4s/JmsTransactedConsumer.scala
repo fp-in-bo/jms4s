@@ -47,10 +47,8 @@ object JmsTransactedConsumer {
                   ifRollback = context.rollback,
                   ifSend = send =>
                     send.messages.messagesAndDestinations.traverse_ {
-                      case (message, (name, delay)) =>
-                        delay.fold(
-                          context.send(name, message)
-                        )(d => context.send(name, message, d))
+                      case (message, (name, Some(delay))) => context.send(name, message, delay)
+                      case (message, (name, None))        => context.send(name, message)
                     } *> context.commit
                 )
           } yield ()

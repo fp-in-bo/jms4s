@@ -47,8 +47,8 @@ object JmsAutoAcknowledgerConsumer {
                   ifNoOp = Sync[F].unit,
                   ifSend = (send: Send[F]) =>
                     send.messages.messagesAndDestinations.traverse_ {
-                      case (message, (name, delay)) =>
-                        delay.fold(context.send(name, message))(delay => context.send(name, message, delay))
+                      case (message, (name, Some(delay))) => context.send(name, message, delay)
+                      case (message, (name, None))        => context.send(name, message)
                     }
                 )
           } yield ()
