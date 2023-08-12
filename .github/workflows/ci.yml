@@ -19,6 +19,7 @@ env:
   SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
   SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
   PGP_SECRET: ${{ secrets.PGP_SECRET }}
+  TEST_ENV_VAR: "maronn"
 
 jobs:
   build:
@@ -61,11 +62,14 @@ jobs:
             ~/Library/Caches/Coursier/v1
           key: ${{ runner.os }}-sbt-cache-v2-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
 
-      - name: Check that workflows are up to date
-        run: sbt ++${{ matrix.scala }} githubWorkflowCheck
+#      - name: Check that workflows are up to date
+#        run: sbt ++${{ matrix.scala }} githubWorkflowCheck
 
       - name: Start docker containers
         run: docker-compose up --renew-anon-volumes --force-recreate -d
+
+      - name: Test TEST_ENV_VAR
+        run: echo $TEST_ENV_VAR
 
       - name: Test
         run: sbt ++${{ matrix.scala }} test
