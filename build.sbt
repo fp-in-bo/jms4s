@@ -1,6 +1,6 @@
 import sbtghactions.JavaSpec.Distribution.Adopt
 
-val Scala213 = "2.13.10"
+val Scala213 = "2.13.13"
 val Scala212 = "2.12.18"
 val Java18   = JavaSpec(Adopt, "8")
 val Java11   = JavaSpec(Adopt, "11")
