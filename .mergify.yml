@@ -1,3 +1,4 @@
+
 pull_request_rules:
   - name: automatically merge scala-steward's PRs
     conditions:
@@ -5,14 +6,19 @@ pull_request_rules:
       - author=scala-steward
       - status-success=Build Success (ubuntu-latest, 2.13.10, adopt-hotspot@8)
     actions:
-        delete_head_branch: 
-            force: true
-        queue:
-            method: rebase
-            name: default
-            
+      delete_head_branch:
+        force: true
+  - name: refactored queue action rule
+    conditions: []
+    actions:
+      queue:
 queue_rules:
   - name: default
-    conditions:
+    queue_conditions:
+      - head~=^update/
+      - author=scala-steward
+      - status-success=Build Success (ubuntu-latest, 2.13.10, adopt-hotspot@8)
+    merge_conditions:
       # Conditions to get out of the queue (= merged)
       - check-success=Build Success (ubuntu-latest, 2.13.10, adopt-hotspot@8)
+    merge_method: rebase
