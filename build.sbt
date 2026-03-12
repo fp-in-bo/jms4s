@@ -113,7 +113,7 @@ val activeMQV            = "2.19.1"
 val catsEffectV          = "3.5.2"
 val catsEffectScalaTestV = "1.5.0"
 val fs2V                 = "3.9.3"
-val log4catsV            = "2.6.0"
+val log4catsV            = "2.8.0"
 val log4jSlf4jImplV      = "2.22.0"
 
 val kindProjectorV    = "0.13.2"
